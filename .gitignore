@@ -1,4 +1,5 @@
 *.env
 *.out
 cmd/utterson/utterson
+cmd/utterson/posts
 cmd/utterson/html
