@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const defaultRobotsTxt = `User-agent: *
+const defaultRobotsTxtDisallow = `User-agent: *
 Disallow: /
 `
 
@@ -59,10 +59,8 @@ func run() error {
 		return errors.Wrap(err, "output directory creation")
 	}
 
-	if c.RobotsDisallow {
-		if err = createRobotsTxt(c.OutputDirectory); err != nil {
-			return errors.Wrap(err, "robots.txt creation")
-		}
+	if err = createRobotsTxt(c.OutputDirectory, c.RobotsDisallow); err != nil {
+		return errors.Wrap(err, "robots.txt creation")
 	}
 
 	if err = createIndexHTML(c.OutputDirectory); err != nil {
@@ -80,8 +78,20 @@ func createOutputDirectory(name string) error {
 	return nil
 }
 
-func createRobotsTxt(path string) error {
-	return ioutil.WriteFile("./"+path+"/robots.txt", []byte(defaultRobotsTxt), 0644)
+func createRobotsTxt(path string, disallow bool) error {
+	return ioutil.WriteFile(
+		"./"+path+"/robots.txt",
+		[]byte(getRobotsTxtContent(disallow)),
+		00644,
+	)
+}
+
+func getRobotsTxtContent(disallow bool) string {
+	if disallow {
+		return defaultRobotsTxtDisallow
+	}
+
+	return ""
 }
 
 func createIndexHTML(path string) error {
