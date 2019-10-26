@@ -3,3 +3,5 @@
 cmd/utterson/utterson
 cmd/utterson/posts
 cmd/utterson/html
+cmd/utterson/templates
+

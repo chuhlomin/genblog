@@ -2,23 +2,43 @@ package main
 
 import (
 	"bytes"
+	"html/template"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/caarlos0/env/v6"
 	"github.com/gomarkdown/markdown"
 	"github.com/pkg/errors"
+	"gopkg.in/yaml.v2"
 )
 
-const defaultRobotsTxtDisallow = `User-agent: *
-Disallow: /
+const (
+	defaultIndexTemplate = `<p>Hello</p>
 `
 
-const defaultIndexHTML = `<p>Hello</p>
+	defaultPostTemplate = `
+<!DOCTYPE html>
+<html>
+<head>
+<title>{{.Metadata.Title}}</title>
+</head>
+<body>
+{{.Body}}
+</body>
+</html>
 `
+
+	postTemplate = "templates/post.html"
+)
+
+const (
+	permFile = 0644
+	permDir  = 0755
+)
 
 type config struct {
 	Title                      string `env:"PLUGIN_TITLE,required"`
@@ -43,14 +63,25 @@ type config struct {
 	OutputDirectory            string `env:"PLUGIN_OUTPUT_DIRECTORY" envDefault:"html"`
 }
 
+type metadata struct {
+	Title string   `yaml:"title"`
+	Tags  []string `yaml:"tags"`
+}
+
+type postData struct {
+	Metadata metadata
+	Body     template.HTML
+}
+
 func main() {
-	log.Println("Starting...")
+	log.Println("Starting")
+	t := time.Now()
 
 	if err := run(); err != nil {
 		log.Fatalf("ERROR: %v", err)
 	}
 
-	log.Println("Stopped")
+	log.Printf("Finished in %dms", time.Now().Sub(t).Milliseconds())
 }
 
 func run() error {
@@ -61,15 +92,11 @@ func run() error {
 	}
 
 	if err = createDirectory(c.OutputDirectory); err != nil {
-		return errors.Wrap(err, "output directory creation")
+		return errors.Wrapf(err, "output directory creation (%s)", c.OutputDirectory)
 	}
 
 	if err = createDirectory(c.OutputDirectory + "/posts"); err != nil {
 		return errors.Wrap(err, "posts directory creation")
-	}
-
-	if err = createRobotsTxt(c.OutputDirectory, c.RobotsDisallow); err != nil {
-		return errors.Wrap(err, "robots.txt creation")
 	}
 
 	if err = createIndexHTML(c.OutputDirectory); err != nil {
@@ -80,11 +107,13 @@ func run() error {
 	errorChannel := make(chan error)
 	done := make(chan bool)
 
+	t := getPostTemplate()
+
 	go func() {
 		for {
 			path, more := <-markdownChannel
 			if more {
-				if err := convertMarkdownFile(path, c.OutputDirectory); err != nil {
+				if err := convertMarkdownFile(path, c.OutputDirectory, t); err != nil {
 					log.Printf("ERROR processing markdown file %s: %v", path, err)
 					continue
 				}
@@ -108,30 +137,14 @@ func run() error {
 
 func createDirectory(name string) error {
 	if _, err := os.Stat(name); os.IsNotExist(err) {
-		return os.Mkdir(name, 0755)
+		return os.Mkdir(name, permDir)
 	}
 
 	return nil
 }
 
-func createRobotsTxt(path string, disallow bool) error {
-	return ioutil.WriteFile(
-		"./"+path+"/robots.txt",
-		[]byte(getRobotsTxtContent(disallow)),
-		00644,
-	)
-}
-
-func getRobotsTxtContent(disallow bool) string {
-	if disallow {
-		return defaultRobotsTxtDisallow
-	}
-
-	return ""
-}
-
 func createIndexHTML(path string) error {
-	return ioutil.WriteFile("./"+path+"/index.html", []byte(defaultIndexHTML), 0644)
+	return ioutil.WriteFile("./"+path+"/index.html", []byte(defaultIndexTemplate), 0644)
 }
 
 func readPostsDirectory(path string, markdownChannel chan string) error {
@@ -147,24 +160,60 @@ func readPostsDirectory(path string, markdownChannel chan string) error {
 	})
 }
 
-func convertMarkdownFile(path string, outputDirectory string) error {
+func convertMarkdownFile(path string, outputDirectory string, t *template.Template) error {
 	b, err := ioutil.ReadFile("./" + path)
 	if err != nil {
-		return errors.Wrapf(err, "failed to read file %s", path)
+		return errors.Wrapf(err, "read file %s", path)
 	}
 
+	metadataBytes, bodyBytes := getMetadataAndBody(b)
+
+	metadata := metadata{}
+	err = yaml.Unmarshal(metadataBytes, &metadata)
+	if err != nil {
+		return errors.Wrapf(err, "reading metadata")
+	}
+
+	output := markdown.ToHTML(bodyBytes, nil, nil)
+
+	data := postData{
+		Metadata: metadata,
+		Body:     template.HTML(string(output)),
+	}
+
+	filename := "./" + outputDirectory + "/" + strings.Replace(path, ".md", ".html", 1)
+
+	return writeFile(filename, data, t)
+}
+
+func getMetadataAndBody(b []byte) ([]byte, []byte) {
 	if bytes.HasPrefix(b, []byte("---")) {
 		if parts := bytes.SplitN(b, []byte("---"), 3); len(parts) == 3 {
-			_ = parts[1]
-			b = parts[2]
+			return parts[1], parts[2]
 		}
 	}
 
-	output := markdown.ToHTML(b, nil, nil)
+	return []byte{}, b
+}
 
-	return ioutil.WriteFile(
-		"./"+outputDirectory+"/"+strings.Replace(path, ".md", ".html", 1),
-		output,
-		0644,
-	)
+func writeFile(filename string, data postData, t *template.Template) error {
+	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, permFile)
+	if err != nil {
+		return errors.Wrapf(err, "creating %s", filename)
+	}
+	defer f.Close()
+
+	if err = t.Execute(f, data); err != nil {
+		return errors.Wrap(err, "template execution")
+	}
+
+	return nil
+}
+
+func getPostTemplate() *template.Template {
+	if _, err := os.Stat(postTemplate); os.IsNotExist(err) {
+		return template.Must(template.New("post").Parse(defaultPostTemplate))
+	}
+
+	return template.Must(template.ParseFiles(postTemplate))
 }
