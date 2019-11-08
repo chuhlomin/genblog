@@ -17,7 +17,15 @@ import (
 )
 
 const (
-	defaultIndexTemplate = `<p>Hello</p>
+	defaultIndexTemplate = `<!DOCTYPE html>
+<html>
+<head>
+<title>Index</title>
+</head>
+<body>
+{{.Posts}}
+</body>
+</html>
 `
 
 	defaultPostTemplate = `
@@ -32,7 +40,8 @@ const (
 </html>
 `
 
-	postTemplate = "templates/post.html"
+	templatePost  = "templates/post.html"
+	templateIndex = "templates/index.html"
 )
 
 const (
@@ -64,13 +73,18 @@ type config struct {
 }
 
 type metadata struct {
-	Title string   `yaml:"title"`
-	Tags  []string `yaml:"tags"`
+	Title    string   `yaml:"title"`
+	Tags     []string `yaml:"tags"`
+	Filename string   // set by code
 }
 
 type postData struct {
-	Metadata metadata
+	Metadata *metadata
 	Body     template.HTML
+}
+
+type indexData struct {
+	Posts []*metadata
 }
 
 func main() {
@@ -99,26 +113,27 @@ func run() error {
 		return errors.Wrap(err, "posts directory creation")
 	}
 
-	if err = createIndexHTML(c.OutputDirectory); err != nil {
-		return errors.Wrap(err, "index.html creation")
-	}
+	var posts []*metadata
+
+	// write posts
 
 	markdownChannel := make(chan string)
-	errorChannel := make(chan error)
 	done := make(chan bool)
 
-	t := getPostTemplate()
+	postTemplate := getPostTemplate()
 
 	go func() {
 		for {
 			path, more := <-markdownChannel
 			if more {
-				if err := convertMarkdownFile(path, c.OutputDirectory, t); err != nil {
+				m, err := convertMarkdownFile(path, c.OutputDirectory, postTemplate)
+				if err != nil {
 					log.Printf("ERROR processing markdown file %s: %v", path, err)
 					continue
 				}
+				posts = append(posts, m)
 			} else {
-				close(errorChannel)
+
 				done <- true
 				return
 			}
@@ -132,7 +147,14 @@ func run() error {
 	close(markdownChannel)
 	<-done
 
-	return nil
+	// write index
+	data := indexData{
+		Posts: posts,
+	}
+
+	indexTemplate := getIndexTemplate()
+	filename := "./" + c.OutputDirectory + "/index.html"
+	return writeFile(filename, data, indexTemplate)
 }
 
 func createDirectory(name string) error {
@@ -160,30 +182,35 @@ func readPostsDirectory(path string, markdownChannel chan string) error {
 	})
 }
 
-func convertMarkdownFile(path string, outputDirectory string, t *template.Template) error {
+func convertMarkdownFile(
+	path string,
+	outputDirectory string,
+	postTemplate *template.Template,
+) (*metadata, error) {
 	b, err := ioutil.ReadFile("./" + path)
 	if err != nil {
-		return errors.Wrapf(err, "read file %s", path)
+		return nil, errors.Wrapf(err, "read file %s", path)
 	}
 
 	metadataBytes, bodyBytes := getMetadataAndBody(b)
 
-	metadata := metadata{}
-	err = yaml.Unmarshal(metadataBytes, &metadata)
+	m := metadata{}
+	err = yaml.Unmarshal(metadataBytes, &m)
 	if err != nil {
-		return errors.Wrapf(err, "reading metadata")
+		return nil, errors.Wrapf(err, "reading metadata")
 	}
 
 	output := markdown.ToHTML(bodyBytes, nil, nil)
 
 	data := postData{
-		Metadata: metadata,
+		Metadata: &m,
 		Body:     template.HTML(string(output)),
 	}
 
-	filename := "./" + outputDirectory + "/" + strings.Replace(path, ".md", ".html", 1)
+	m.Filename = strings.Replace(path, ".md", ".html", 1)
+	filename := "./" + outputDirectory + "/" + m.Filename
 
-	return writeFile(filename, data, t)
+	return &m, writeFile(filename, data, postTemplate)
 }
 
 func getMetadataAndBody(b []byte) ([]byte, []byte) {
@@ -196,7 +223,7 @@ func getMetadataAndBody(b []byte) ([]byte, []byte) {
 	return []byte{}, b
 }
 
-func writeFile(filename string, data postData, t *template.Template) error {
+func writeFile(filename string, data interface{}, t *template.Template) error {
 	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, permFile)
 	if err != nil {
 		return errors.Wrapf(err, "creating %s", filename)
@@ -211,9 +238,17 @@ func writeFile(filename string, data postData, t *template.Template) error {
 }
 
 func getPostTemplate() *template.Template {
-	if _, err := os.Stat(postTemplate); os.IsNotExist(err) {
+	if _, err := os.Stat(templatePost); os.IsNotExist(err) {
 		return template.Must(template.New("post").Parse(defaultPostTemplate))
 	}
 
-	return template.Must(template.ParseFiles(postTemplate))
+	return template.Must(template.ParseFiles(templatePost))
+}
+
+func getIndexTemplate() *template.Template {
+	if _, err := os.Stat(templateIndex); os.IsNotExist(err) {
+		return template.Must(template.New("index").Parse(defaultIndexTemplate))
+	}
+
+	return template.Must(template.ParseFiles(templateIndex))
 }
