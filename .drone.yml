@@ -6,6 +6,8 @@ name: default
 steps:
 - name: build
   image: golang:1.13
+  environment:
+      GOPROXY: https://athens.chuhlomin.com
   commands:
     - make test
     - make build-static
