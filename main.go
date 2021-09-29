@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"html/template"
 	"io/ioutil"
@@ -78,13 +79,19 @@ type metadata struct {
 	Filename string   // set by code
 }
 
-type postData struct {
+type htmlPage struct {
+	Path     string
 	Metadata *metadata
 	Body     template.HTML
 }
 
 type indexData struct {
+	htmlPage
 	Posts []*metadata
+}
+
+var fm = template.FuncMap{
+	"back": back,
 }
 
 func main() {
@@ -106,7 +113,7 @@ func run() error {
 	}
 
 	if err = createDirectory(c.OutputDirectory); err != nil {
-		return errors.Wrapf(err, "output directory creation (%s)", c.OutputDirectory)
+		return errors.Wrapf(err, "output directory creation %q", c.OutputDirectory)
 	}
 
 	if err = createDirectory(c.OutputDirectory + "/posts"); err != nil {
@@ -149,6 +156,13 @@ func run() error {
 
 	// write index
 	data := indexData{
+		htmlPage: htmlPage{
+			Metadata: &metadata{
+				Title: "Hello",
+			},
+			Body: template.HTML(`<h1>Hello</h1>`),
+			Path: "",
+		},
 		Posts: posts,
 	}
 
@@ -185,7 +199,7 @@ func readPostsDirectory(path string, markdownChannel chan string) error {
 func convertMarkdownFile(
 	path string,
 	outputDirectory string,
-	postTemplate *template.Template,
+	tpl *template.Template,
 ) (*metadata, error) {
 	b, err := ioutil.ReadFile("./" + path)
 	if err != nil {
@@ -194,23 +208,23 @@ func convertMarkdownFile(
 
 	metadataBytes, bodyBytes := getMetadataAndBody(b)
 
-	m := metadata{}
-	err = yaml.Unmarshal(metadataBytes, &m)
+	m, err := buildMetadata(metadataBytes, bodyBytes)
 	if err != nil {
-		return nil, errors.Wrapf(err, "reading metadata")
+		return nil, errors.Wrapf(err, "build metadata %s", path)
 	}
 
 	output := markdown.ToHTML(bodyBytes, nil, nil)
 
-	data := postData{
-		Metadata: &m,
+	data := htmlPage{
+		Metadata: m,
 		Body:     template.HTML(string(output)),
+		Path:     path,
 	}
 
 	m.Filename = strings.Replace(path, ".md", ".html", 1)
 	filename := "./" + outputDirectory + "/" + m.Filename
 
-	return &m, writeFile(filename, data, postTemplate)
+	return m, writeFile(filename, data, tpl)
 }
 
 func getMetadataAndBody(b []byte) ([]byte, []byte) {
@@ -221,6 +235,37 @@ func getMetadataAndBody(b []byte) ([]byte, []byte) {
 	}
 
 	return []byte{}, b
+}
+
+func buildMetadata(metadataBytes []byte, bodyBytes []byte) (*metadata, error) {
+	if len(metadataBytes) != 0 {
+		m := metadata{}
+		err := yaml.Unmarshal(metadataBytes, &m)
+		if err != nil {
+			return nil, errors.Wrapf(err, "reading metadata")
+		}
+		return &m, nil
+	}
+
+	return grabMetadata(bodyBytes)
+}
+
+func grabMetadata(b []byte) (*metadata, error) {
+	m := metadata{}
+
+	b = bytes.TrimSpace(b)
+
+	if bytes.HasPrefix(b, []byte("#")) {
+		scanner := bufio.NewScanner(bytes.NewReader(b))
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "# ") {
+				m.Title = strings.TrimSpace(line[2:])
+			}
+		}
+	}
+
+	return &m, nil
 }
 
 func writeFile(filename string, data interface{}, t *template.Template) error {
@@ -239,10 +284,24 @@ func writeFile(filename string, data interface{}, t *template.Template) error {
 
 func getPostTemplate() *template.Template {
 	if _, err := os.Stat(templatePost); os.IsNotExist(err) {
-		return template.Must(template.New("post").Parse(defaultPostTemplate))
+		return template.Must(
+			template.New("post").Funcs(fm).Parse(defaultPostTemplate),
+		)
 	}
 
-	return template.Must(template.ParseFiles(templatePost))
+	t, err := parseFiles(fm, templatePost)
+	if err != nil {
+		log.Fatalf("ERROR parsing template %s: %v", templatePost, err)
+	}
+	return t
+}
+
+func back(path string) string {
+	return strings.Repeat("../", len(strings.Split(path, "/"))-1)
+}
+
+func parseFiles(funcs template.FuncMap, filenames ...string) (*template.Template, error) {
+	return template.New(filepath.Base(filenames[0])).Funcs(funcs).ParseFiles(filenames...)
 }
 
 func getIndexTemplate() *template.Template {

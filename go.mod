@@ -1,6 +1,6 @@
-module github.com/chuhlomin/utterson
+module github.com/chuhlomin/mkblog
 
-go 1.13
+go 1.16
 
 require (
 	github.com/caarlos0/env/v6 v6.1.0
