@@ -1,4 +1,4 @@
-module github.com/chuhlomin/mkblog
+module github.com/chuhlomin/genblog
 
 go 1.16
 

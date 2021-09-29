@@ -51,26 +51,26 @@ const (
 )
 
 type config struct {
-	Title                      string `env:"PLUGIN_TITLE,required"`
-	ShortDescription           string `env:"PLUGIN_SHORT_DESCRIPTION,required"`
-	Author                     string `env:"PLUGIN_AUTHOR,required"`
-	Template                   string `env:"PLUGIN_TEMPLATE" envDefault:"acute"`
-	Timezone                   string `env:"PLUGIN_TIMEZONE" envDefault:"America/New_York"`
-	Encoding                   string `env:"PLUGIN_ENCODING" envDefault:"utf-8"`
-	Language                   string `env:"PLUGIN_LANGUAGE" envDefault:"en"`
-	ShowDrafts                 bool   `env:"PLUGIN_SHOW_DRAFTS"`
-	Future                     bool   `env:"PLUGIN_FUTURE"`
-	PostsPerPage               int    `env:"PLUGIN_POSTS_PER_PAGE" envDefault:"10"`
-	DisableTypography          bool   `env:"PLUGIN_DISABLE_TYPOGRAPHY"`
-	ShowSocialSharingButtons   bool   `env:"PLUGIN_SHOW_SOCIAL_SHARING_BUTTONS"`
-	CommentsAllowByDefault     bool   `env:"PLUGIN_COMMENTS_ALLOW_BY_DEFAULT" envDefault:"true"`
-	CommandsOnlyForRecentPosts bool   `env:"PLUGIN_COMMANDS_ONLY_FOR_RECENT_POSTS"`
-	CommentsSendByEmail        string `env:"PLUGIN_COMMENTS_SEND_BY_EMAIL"`
-	YandexMetrika              string `env:"PLUGIN_YANDEX_METRIKA"`
-	GoogleAnalytics            string `env:"PLUGIN_GOOGLE_ANALYTICS"`
-	RobotsDisallow             bool   `env:"PLUGIN_ROBOTS_DISALLOW"`
-	PostsDirectory             string `env:"PLUGIN_POSTS_DIRECTORY" envDefault:"posts"`
-	OutputDirectory            string `env:"PLUGIN_OUTPUT_DIRECTORY" envDefault:"html"`
+	Title            string `env:"INPUT_TITLE,required"`
+	ShortDescription string `env:"INPUT_SHORT_DESCRIPTION,required"`
+	Author           string `env:"INPUT_AUTHOR,required"`
+	// Template                   string `env:"INPUT_TEMPLATE" envDefault:"acute"`
+	// Timezone                   string `env:"INPUT_TIMEZONE" envDefault:"America/New_York"`
+	// Encoding                   string `env:"INPUT_ENCODING" envDefault:"utf-8"`
+	// Language                   string `env:"INPUT_LANGUAGE" envDefault:"en"`
+	// ShowDrafts                 bool   `env:"INPUT_SHOW_DRAFTS"`
+	// Future                     bool   `env:"INPUT_FUTURE"`
+	// PostsPerPage               int    `env:"INPUT_POSTS_PER_PAGE" envDefault:"10"`
+	// DisableTypography          bool   `env:"INPUT_DISABLE_TYPOGRAPHY"`
+	// ShowSocialSharingButtons   bool   `env:"INPUT_SHOW_SOCIAL_SHARING_BUTTONS"`
+	// CommentsAllowByDefault     bool   `env:"INPUT_COMMENTS_ALLOW_BY_DEFAULT" envDefault:"true"`
+	// CommandsOnlyForRecentPosts bool   `env:"INPUT_COMMANDS_ONLY_FOR_RECENT_POSTS"`
+	// CommentsSendByEmail        string `env:"INPUT_COMMENTS_SEND_BY_EMAIL"`
+	// YandexMetrika              string `env:"INPUT_YANDEX_METRIKA"`
+	// GoogleAnalytics            string `env:"INPUT_GOOGLE_ANALYTICS"`
+	// RobotsDisallow             bool   `env:"INPUT_ROBOTS_DISALLOW"`
+	PostsDirectory  string `env:"INPUT_POSTS_DIRECTORY" envDefault:"posts"`
+	OutputDirectory string `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"output"`
 }
 
 type metadata struct {
@@ -116,7 +116,7 @@ func run() error {
 		return errors.Wrapf(err, "output directory creation %q", c.OutputDirectory)
 	}
 
-	if err = createDirectory(c.OutputDirectory + "/posts"); err != nil {
+	if err = createDirectory(c.OutputDirectory); err != nil {
 		return errors.Wrap(err, "posts directory creation")
 	}
 
@@ -189,7 +189,7 @@ func readPostsDirectory(path string, markdownChannel chan string) error {
 			return err
 		}
 
-		if strings.HasSuffix(path, ".md") {
+		if strings.HasSuffix(path, ".md") && path != "README.md" {
 			markdownChannel <- path
 		}
 		return nil

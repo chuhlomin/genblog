@@ -1,0 +1,33 @@
+name: GenBlog
+description: Generate a static blog from markdown files
+
+author: Konstantin Chukhlomin <mail@chuhlomin.com>
+
+branding:
+  icon: book
+  color: purple
+
+inputs:
+  title:
+    description: Title of the blog
+    required: true
+  short_description:
+    description: Short description of the blog
+    required: true
+  author:
+    description: Author of the blog
+    required: true
+  posts_directory:
+    description: Path to posts directory, default "posts"
+    required: false
+  output_directory:
+    description: Path to output directory, default "output"
+    required: false
+
+outputs:
+  result:
+    description: Rendered file content
+
+runs:
+  using: docker
+  image: 'docker://chuhlomin/genblog:latest'
