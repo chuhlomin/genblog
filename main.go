@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"html/template"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -15,34 +16,6 @@ import (
 	"github.com/gomarkdown/markdown"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
-)
-
-const (
-	defaultIndexTemplate = `<!DOCTYPE html>
-<html>
-<head>
-<title>Index</title>
-</head>
-<body>
-{{.Posts}}
-</body>
-</html>
-`
-
-	defaultPostTemplate = `
-<!DOCTYPE html>
-<html>
-<head>
-<title>{{.Metadata.Title}}</title>
-</head>
-<body>
-{{.Body}}
-</body>
-</html>
-`
-
-	templatePost  = "templates/post.html"
-	templateIndex = "templates/index.html"
 )
 
 const (
@@ -90,10 +63,6 @@ type indexData struct {
 	Posts []*metadata
 }
 
-var fm = template.FuncMap{
-	"back": back,
-}
-
 func main() {
 	log.Println("Starting")
 	t := time.Now()
@@ -116,10 +85,6 @@ func run() error {
 		return errors.Wrapf(err, "output directory creation %q", c.OutputDirectory)
 	}
 
-	if err = createDirectory(c.OutputDirectory); err != nil {
-		return errors.Wrap(err, "posts directory creation")
-	}
-
 	var posts []*metadata
 
 	// write posts
@@ -127,7 +92,14 @@ func run() error {
 	markdownChannel := make(chan string)
 	done := make(chan bool)
 
-	postTemplate := getPostTemplate()
+	// t := template.Must(template.ParseGlob("template/*.html"))
+	// t, err := parseFiles(fm, "template/*.html")
+	t, err := template.New("template").Funcs(fm).ParseGlob("template/*.html")
+	if err != nil {
+		return errors.Wrap(err, "template parsing")
+	}
+
+	postTemplate := getPostTemplate(t)
 
 	go func() {
 		for {
@@ -154,21 +126,47 @@ func run() error {
 	close(markdownChannel)
 	<-done
 
-	// write index
-	data := indexData{
-		htmlPage: htmlPage{
-			Metadata: &metadata{
-				Title: "Hello",
-			},
-			Body: template.HTML(`<h1>Hello</h1>`),
-			Path: "",
-		},
-		Posts: posts,
+	// copy styles.css if exist in `template` directory
+	if _, err := os.Stat(templateStyles); err == nil {
+		if err := copyFile(templateStyles, c.OutputDirectory+"/styles.css"); err != nil {
+			return errors.Wrap(err, "styles.css copy")
+		}
 	}
 
-	indexTemplate := getIndexTemplate()
-	filename := "./" + c.OutputDirectory + "/index.html"
-	return writeFile(filename, data, indexTemplate)
+	return writeFile(
+		"./"+c.OutputDirectory+"/index.html",
+		indexData{
+			htmlPage: htmlPage{
+				Metadata: &metadata{
+					Title: "Hello",
+				},
+				Body: template.HTML(`<h1>Hello</h1>`),
+				Path: "",
+			},
+			Posts: posts,
+		},
+		t.Lookup(templateIndex),
+	)
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+
+	return out.Sync()
 }
 
 func createDirectory(name string) error {
@@ -177,10 +175,6 @@ func createDirectory(name string) error {
 	}
 
 	return nil
-}
-
-func createIndexHTML(path string) error {
-	return ioutil.WriteFile("./"+path+"/index.html", []byte(defaultIndexTemplate), 0644)
 }
 
 func readPostsDirectory(path string, markdownChannel chan string) error {
@@ -196,11 +190,7 @@ func readPostsDirectory(path string, markdownChannel chan string) error {
 	})
 }
 
-func convertMarkdownFile(
-	path string,
-	outputDirectory string,
-	tpl *template.Template,
-) (*metadata, error) {
+func convertMarkdownFile(path, outputDirectory string, tpl *template.Template) (*metadata, error) {
 	b, err := ioutil.ReadFile("./" + path)
 	if err != nil {
 		return nil, errors.Wrapf(err, "read file %s", path)
@@ -266,48 +256,4 @@ func grabMetadata(b []byte) (*metadata, error) {
 	}
 
 	return &m, nil
-}
-
-func writeFile(filename string, data interface{}, t *template.Template) error {
-	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, permFile)
-	if err != nil {
-		return errors.Wrapf(err, "creating %s", filename)
-	}
-	defer f.Close()
-
-	if err = t.Execute(f, data); err != nil {
-		return errors.Wrap(err, "template execution")
-	}
-
-	return nil
-}
-
-func getPostTemplate() *template.Template {
-	if _, err := os.Stat(templatePost); os.IsNotExist(err) {
-		return template.Must(
-			template.New("post").Funcs(fm).Parse(defaultPostTemplate),
-		)
-	}
-
-	t, err := parseFiles(fm, templatePost)
-	if err != nil {
-		log.Fatalf("ERROR parsing template %s: %v", templatePost, err)
-	}
-	return t
-}
-
-func back(path string) string {
-	return strings.Repeat("../", len(strings.Split(path, "/"))-1)
-}
-
-func parseFiles(funcs template.FuncMap, filenames ...string) (*template.Template, error) {
-	return template.New(filepath.Base(filenames[0])).Funcs(funcs).ParseFiles(filenames...)
-}
-
-func getIndexTemplate() *template.Template {
-	if _, err := os.Stat(templateIndex); os.IsNotExist(err) {
-		return template.Must(template.New("index").Parse(defaultIndexTemplate))
-	}
-
-	return template.Must(template.ParseFiles(templateIndex))
 }
