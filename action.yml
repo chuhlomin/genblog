@@ -17,11 +17,14 @@ inputs:
   author:
     description: Author of the blog
     required: true
-  posts_directory:
-    description: Path to posts directory, default "posts"
+  source_directory:
+    description: Path to directory with Markdown files, default "."
     required: false
   output_directory:
     description: Path to output directory, default "output"
+    required: false
+  templates_directory:
+    description: Path to templates directory, default "templates"
     required: false
   templates:
     description: >

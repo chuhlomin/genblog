@@ -24,12 +24,13 @@ const (
 )
 
 type config struct {
-	Title            string `env:"INPUT_TITLE,required"`
-	ShortDescription string `env:"INPUT_SHORT_DESCRIPTION,required"`
-	Author           string `env:"INPUT_AUTHOR,required"`
-	PostsDirectory   string `env:"INPUT_POSTS_DIRECTORY" envDefault:"posts"`
-	OutputDirectory  string `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"output"`
-	Templates        string `env:"INPUT_TEMPLATES" envDefault:"index.html,404.html"`
+	Title              string `env:"INPUT_TITLE,required"`
+	ShortDescription   string `env:"INPUT_SHORT_DESCRIPTION,required"`
+	Author             string `env:"INPUT_AUTHOR,required"`
+	SourceDirectory    string `env:"INPUT_SOURCE_DIRECTORY" envDefault:"."`
+	OutputDirectory    string `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"output"`
+	TemplatesDirectory string `env:"INPUT_TEMPLATES_DIRECTORY" envDefault:"templates"`
+	Templates          string `env:"INPUT_TEMPLATES" envDefault:"index.html,404.html"`
 	// Template                   string `env:"INPUT_TEMPLATE" envDefault:"acute"`
 	// Timezone                   string `env:"INPUT_TIMEZONE" envDefault:"America/New_York"`
 	// Encoding                   string `env:"INPUT_ENCODING" envDefault:"utf-8"`
@@ -86,9 +87,9 @@ func run() error {
 		return errors.Wrapf(err, "output directory creation %q", c.OutputDirectory)
 	}
 
-	t, err := template.New("template").Funcs(fm).ParseGlob("template/*.html")
+	t, err := template.New("templates").Funcs(fm).ParseGlob(c.TemplatesDirectory + "/*")
 	if err != nil {
-		return errors.Wrap(err, "template parsing")
+		return errors.Wrap(err, "templates parsing")
 	}
 
 	// write posts
@@ -115,7 +116,7 @@ func run() error {
 		}
 	}()
 
-	if err := readPostsDirectory(c.PostsDirectory, markdownChannel); err != nil {
+	if err := readSourceDirectory(c.SourceDirectory, markdownChannel); err != nil {
 		return errors.Wrap(err, "read posts directory")
 	}
 
@@ -183,7 +184,7 @@ func createDirectory(name string) error {
 	return nil
 }
 
-func readPostsDirectory(path string, markdownChannel chan string) error {
+func readSourceDirectory(path string, markdownChannel chan string) error {
 	return filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
