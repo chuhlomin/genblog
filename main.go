@@ -27,6 +27,9 @@ type config struct {
 	Title            string `env:"INPUT_TITLE,required"`
 	ShortDescription string `env:"INPUT_SHORT_DESCRIPTION,required"`
 	Author           string `env:"INPUT_AUTHOR,required"`
+	PostsDirectory   string `env:"INPUT_POSTS_DIRECTORY" envDefault:"posts"`
+	OutputDirectory  string `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"output"`
+	Templates        string `env:"INPUT_TEMPLATES" envDefault:"index.html,404.html"`
 	// Template                   string `env:"INPUT_TEMPLATE" envDefault:"acute"`
 	// Timezone                   string `env:"INPUT_TIMEZONE" envDefault:"America/New_York"`
 	// Encoding                   string `env:"INPUT_ENCODING" envDefault:"utf-8"`
@@ -42,8 +45,6 @@ type config struct {
 	// YandexMetrika              string `env:"INPUT_YANDEX_METRIKA"`
 	// GoogleAnalytics            string `env:"INPUT_GOOGLE_ANALYTICS"`
 	// RobotsDisallow             bool   `env:"INPUT_ROBOTS_DISALLOW"`
-	PostsDirectory  string `env:"INPUT_POSTS_DIRECTORY" envDefault:"posts"`
-	OutputDirectory string `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"output"`
 }
 
 type metadata struct {
@@ -58,7 +59,7 @@ type htmlPage struct {
 	Body     template.HTML
 }
 
-type indexData struct {
+type defaultData struct {
 	htmlPage
 	Posts []*metadata
 }
@@ -85,21 +86,17 @@ func run() error {
 		return errors.Wrapf(err, "output directory creation %q", c.OutputDirectory)
 	}
 
-	var posts []*metadata
-
-	// write posts
-
-	markdownChannel := make(chan string)
-	done := make(chan bool)
-
-	// t := template.Must(template.ParseGlob("template/*.html"))
-	// t, err := parseFiles(fm, "template/*.html")
 	t, err := template.New("template").Funcs(fm).ParseGlob("template/*.html")
 	if err != nil {
 		return errors.Wrap(err, "template parsing")
 	}
 
+	// write posts
 	postTemplate := getPostTemplate(t)
+	var posts []*metadata // needed for index.html
+
+	markdownChannel := make(chan string)
+	done := make(chan bool)
 
 	go func() {
 		for {
@@ -112,7 +109,6 @@ func run() error {
 				}
 				posts = append(posts, m)
 			} else {
-
 				done <- true
 				return
 			}
@@ -133,20 +129,37 @@ func run() error {
 		}
 	}
 
-	return writeFile(
-		"./"+c.OutputDirectory+"/index.html",
-		indexData{
-			htmlPage: htmlPage{
-				Metadata: &metadata{
-					Title: "Hello",
+	return processTemplates(t, c.Templates, c.OutputDirectory, posts)
+}
+
+func processTemplates(t *template.Template, templates, outputDir string, posts []*metadata) error {
+	tmpls := strings.Split(templates, ",")
+
+	for _, tmpl := range tmpls {
+		if t.Lookup(tmpl) == nil {
+			log.Printf("WARNING: template %q not found", tmpl)
+			continue
+		}
+
+		err := writeFile(
+			"./"+outputDir+"/"+tmpl,
+			defaultData{
+				htmlPage: htmlPage{
+					Metadata: &metadata{
+						Title: "Hello",
+					},
+					Body: template.HTML(``),
+					Path: "",
 				},
-				Body: template.HTML(`<h1>Hello</h1>`),
-				Path: "",
+				Posts: posts,
 			},
-			Posts: posts,
-		},
-		t.Lookup(templateIndex),
-	)
+			t.Lookup(tmpl),
+		)
+		if err != nil {
+			return errors.Wrapf(err, "write template %q", tmpl)
+		}
+	}
+	return nil
 }
 
 func copyFile(src, dst string) error {

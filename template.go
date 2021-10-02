@@ -11,7 +11,6 @@ import (
 
 const (
 	templatePost   = "post.html"
-	templateIndex  = "index.html"
 	templateStyles = "template/styles.css"
 )
 
@@ -52,34 +51,6 @@ func getPostTemplate(t *template.Template) *template.Template {
 </head>
 <body>
 {{.Body}}
-</body>
-</html>`),
-		)
-	}
-
-	return t
-}
-
-func getIndexTemplate(t *template.Template) *template.Template {
-	t = t.Lookup(templateIndex)
-	if t == nil {
-		return template.Must(
-			template.New("index.html").Funcs(fm).Parse(`<!DOCTYPE html>
-<html>
-<head>
-<title>Index</title>
-</head>
-<body>
-{{ range .Posts }}
-<p>
-    <a href="{{ .Filename }}">{{ .Title }}</a>
-    <ul>
-    {{ range .Tags}}
-    <li>{{.}}</li>
-    {{ end }}
-    </ul>
-</p>
-{{ end }}
 </body>
 </html>`),
 		)

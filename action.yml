@@ -23,6 +23,11 @@ inputs:
   output_directory:
     description: Path to output directory, default "output"
     required: false
+  templates:
+    description: >
+      Comma-separated templates filenames that will be processed
+      in addition to posts, default "index.html,404.html"
+    required: false
 
 outputs:
   result:
