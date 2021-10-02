@@ -29,7 +29,7 @@ type config struct {
 	ShortDescription   string `env:"INPUT_SHORT_DESCRIPTION,required"`
 	Author             string `env:"INPUT_AUTHOR,required"`
 	SourceDirectory    string `env:"INPUT_SOURCE_DIRECTORY" envDefault:"."`
-	OutputDirectory    string `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"output"`
+	OutputDirectory    string `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"./output"`
 	TemplatesDirectory string `env:"INPUT_TEMPLATES_DIRECTORY" envDefault:"templates"`
 	Templates          string `env:"INPUT_TEMPLATES" envDefault:"index.html,404.html"`
 	// Template                   string `env:"INPUT_TEMPLATE" envDefault:"acute"`
@@ -112,14 +112,22 @@ func run() error {
 			path, more := <-filesChannel
 			if more {
 				if strings.HasSuffix(path, ".md") {
-					m, err := convertMarkdownFile(path, c.OutputDirectory, postTemplate)
+					m, err := convertMarkdownFile(
+						path,
+						c.SourceDirectory,
+						c.OutputDirectory,
+						postTemplate,
+					)
 					if err != nil {
 						log.Printf("ERROR processing markdown file %s: %v", path, err)
 						continue
 					}
 					posts = append(posts, m)
 				} else {
-					copyFile(path, c.OutputDirectory+"/"+path)
+					copyFile(
+						c.SourceDirectory+"/"+path,
+						c.OutputDirectory+"/"+path,
+					)
 				}
 			} else {
 				done <- true
@@ -149,7 +157,7 @@ func processTemplates(t *template.Template, templates, outputDir string, posts [
 		}
 
 		err := writeFile(
-			"./"+outputDir+"/"+tmpl,
+			outputDir+"/"+tmpl,
 			defaultData{
 				htmlPage: htmlPage{
 					Metadata: &metadata{
@@ -208,15 +216,20 @@ func readSourceDirectory(path string, filesChannel chan string) error {
 			return err
 		}
 
-		if path != "README.md" {
+		if info.IsDir() {
+			return nil
+		}
+
+		ext := filepath.Ext(path)
+		if (ext == ".md" && path != "README.md") || ext == ".jpeg" || ext == ".mp4" {
 			filesChannel <- path
 		}
 		return nil
 	})
 }
 
-func convertMarkdownFile(path, outputDirectory string, tpl *template.Template) (*metadata, error) {
-	b, err := ioutil.ReadFile("./" + path)
+func convertMarkdownFile(path, source, output string, tpl *template.Template) (*metadata, error) {
+	b, err := ioutil.ReadFile(source + "/" + path)
 	if err != nil {
 		return nil, errors.Wrapf(err, "read file %s", path)
 	}
@@ -228,16 +241,16 @@ func convertMarkdownFile(path, outputDirectory string, tpl *template.Template) (
 		return nil, errors.Wrapf(err, "build metadata %s", path)
 	}
 
-	output := markdown.ToHTML(bodyBytes, nil, nil)
+	htmlBody := markdown.ToHTML(bodyBytes, nil, nil)
 
 	data := htmlPage{
 		Metadata: m,
-		Body:     template.HTML(string(output)),
+		Body:     template.HTML(string(htmlBody)),
 		Path:     path,
 	}
 
 	m.Filename = strings.Replace(path, ".md", ".html", 1)
-	filename := outputDirectory + "/" + m.Filename
+	filename := output + "/" + m.Filename
 
 	return m, writeFile(filename, data, tpl)
 }

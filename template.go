@@ -18,8 +18,8 @@ var fm = template.FuncMap{
 func writeFile(filename string, data interface{}, t *template.Template) error {
 	// create directories for file
 	dir := filepath.Dir(filename)
-	if err := os.MkdirAll(dir, permDir); err != nil {
-		return errors.Wrapf(err, "create directories for file %s", filename)
+	if err := os.MkdirAll("./"+dir, permDir); err != nil {
+		return errors.Wrapf(err, "create directories %s for %s", dir, filename)
 	}
 
 	// open file
