@@ -104,19 +104,23 @@ func run() error {
 	postTemplate := getPostTemplate(t)
 	var posts []*metadata // needed for index.html
 
-	markdownChannel := make(chan string)
+	filesChannel := make(chan string)
 	done := make(chan bool)
 
 	go func() {
 		for {
-			path, more := <-markdownChannel
+			path, more := <-filesChannel
 			if more {
-				m, err := convertMarkdownFile(path, c.OutputDirectory, postTemplate)
-				if err != nil {
-					log.Printf("ERROR processing markdown file %s: %v", path, err)
-					continue
+				if strings.HasSuffix(path, ".md") {
+					m, err := convertMarkdownFile(path, c.OutputDirectory, postTemplate)
+					if err != nil {
+						log.Printf("ERROR processing markdown file %s: %v", path, err)
+						continue
+					}
+					posts = append(posts, m)
+				} else {
+					copyFile(path, c.OutputDirectory+"/"+path)
 				}
-				posts = append(posts, m)
 			} else {
 				done <- true
 				return
@@ -124,11 +128,11 @@ func run() error {
 		}
 	}()
 
-	if err := readSourceDirectory(c.SourceDirectory, markdownChannel); err != nil {
+	if err := readSourceDirectory(c.SourceDirectory, filesChannel); err != nil {
 		return errors.Wrap(err, "read posts directory")
 	}
 
-	close(markdownChannel)
+	close(filesChannel)
 	<-done
 
 	sort.Sort(ByCreated(posts))
@@ -166,6 +170,11 @@ func processTemplates(t *template.Template, templates, outputDir string, posts [
 }
 
 func copyFile(src, dst string) error {
+	dir := filepath.Dir(dst)
+	if err := os.MkdirAll(dir, permDir); err != nil {
+		return errors.Wrapf(err, "create directories for file %s", dst)
+	}
+
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -193,14 +202,14 @@ func createDirectory(name string) error {
 	return nil
 }
 
-func readSourceDirectory(path string, markdownChannel chan string) error {
+func readSourceDirectory(path string, filesChannel chan string) error {
 	return filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if strings.HasSuffix(path, ".md") && path != "README.md" {
-			markdownChannel <- path
+		if path != "README.md" {
+			filesChannel <- path
 		}
 		return nil
 	})
@@ -228,7 +237,7 @@ func convertMarkdownFile(path, outputDirectory string, tpl *template.Template) (
 	}
 
 	m.Filename = strings.Replace(path, ".md", ".html", 1)
-	filename := "./" + outputDirectory + "/" + m.Filename
+	filename := outputDirectory + "/" + m.Filename
 
 	return m, writeFile(filename, data, tpl)
 }
