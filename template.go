@@ -9,10 +9,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const (
-	templatePost   = "post.html"
-	templateStyles = "template/styles.css"
-)
+const templatePost = "post.html"
 
 var fm = template.FuncMap{
 	"back": back,

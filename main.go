@@ -122,13 +122,6 @@ func run() error {
 	close(markdownChannel)
 	<-done
 
-	// copy styles.css if exist in `template` directory
-	if _, err := os.Stat(templateStyles); err == nil {
-		if err := copyFile(templateStyles, c.OutputDirectory+"/styles.css"); err != nil {
-			return errors.Wrap(err, "styles.css copy")
-		}
-	}
-
 	return processTemplates(t, c.Templates, c.OutputDirectory, posts)
 }
 
