@@ -205,7 +205,7 @@ func convertMarkdownFile(path, outputDirectory string, tpl *template.Template) (
 
 	metadataBytes, bodyBytes := getMetadataAndBody(b)
 
-	m, err := buildMetadata(metadataBytes, bodyBytes)
+	m, bodyBytes, err := buildMetadata(metadataBytes, bodyBytes)
 	if err != nil {
 		return nil, errors.Wrapf(err, "build metadata %s", path)
 	}
@@ -234,33 +234,44 @@ func getMetadataAndBody(b []byte) ([]byte, []byte) {
 	return []byte{}, b
 }
 
-func buildMetadata(metadataBytes []byte, bodyBytes []byte) (*metadata, error) {
+func buildMetadata(metadataBytes []byte, bodyBytes []byte) (*metadata, []byte, error) {
 	if len(metadataBytes) != 0 {
 		m := metadata{}
 		err := yaml.Unmarshal(metadataBytes, &m)
 		if err != nil {
-			return nil, errors.Wrapf(err, "reading metadata")
+			return nil, bodyBytes, errors.Wrapf(err, "reading metadata")
 		}
-		return &m, nil
+		return &m, bodyBytes, nil
 	}
 
 	return grabMetadata(bodyBytes)
 }
 
-func grabMetadata(b []byte) (*metadata, error) {
+func grabMetadata(b []byte) (*metadata, []byte, error) {
 	m := metadata{}
 
 	b = bytes.TrimSpace(b)
 
 	if bytes.HasPrefix(b, []byte("#")) {
+		buf := bytes.Buffer{}
+		seenHeader := false
+
 		scanner := bufio.NewScanner(bytes.NewReader(b))
 		for scanner.Scan() {
-			line := scanner.Text()
-			if strings.HasPrefix(line, "# ") {
-				m.Title = strings.TrimSpace(line[2:])
+			if !seenHeader {
+				line := scanner.Text()
+				if strings.HasPrefix(line, "# ") {
+					m.Title = strings.TrimSpace(line[2:])
+					seenHeader = true
+					continue
+				}
 			}
+
+			buf.Write(scanner.Bytes())
+			buf.WriteString("\n")
 		}
+		b = buf.Bytes()
 	}
 
-	return &m, nil
+	return &m, b, nil
 }
