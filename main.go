@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -49,6 +50,7 @@ type config struct {
 }
 
 type metadata struct {
+	Created  string   `yaml:"created"`
 	Title    string   `yaml:"title"`
 	Tags     []string `yaml:"tags"`
 	Filename string   // set by code
@@ -64,6 +66,12 @@ type defaultData struct {
 	htmlPage
 	Posts []*metadata
 }
+
+type ByCreated []*metadata
+
+func (c ByCreated) Len() int           { return len(c) }
+func (c ByCreated) Less(i, j int) bool { return c[i].Created > c[j].Created }
+func (c ByCreated) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
 
 func main() {
 	log.Println("Starting")
@@ -123,6 +131,7 @@ func run() error {
 	close(markdownChannel)
 	<-done
 
+	sort.Sort(ByCreated(posts))
 	return processTemplates(t, c.Templates, c.OutputDirectory, posts)
 }
 
@@ -235,21 +244,18 @@ func getMetadataAndBody(b []byte) ([]byte, []byte) {
 }
 
 func buildMetadata(metadataBytes []byte, bodyBytes []byte) (*metadata, []byte, error) {
+	m := metadata{}
 	if len(metadataBytes) != 0 {
-		m := metadata{}
 		err := yaml.Unmarshal(metadataBytes, &m)
 		if err != nil {
 			return nil, bodyBytes, errors.Wrapf(err, "reading metadata")
 		}
-		return &m, bodyBytes, nil
 	}
 
-	return grabMetadata(bodyBytes)
+	return grabMetadata(m, bodyBytes)
 }
 
-func grabMetadata(b []byte) (*metadata, []byte, error) {
-	m := metadata{}
-
+func grabMetadata(m metadata, b []byte) (*metadata, []byte, error) {
 	b = bytes.TrimSpace(b)
 
 	if bytes.HasPrefix(b, []byte("#")) {
