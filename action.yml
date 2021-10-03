@@ -31,6 +31,11 @@ inputs:
       Comma-separated templates filenames that will be processed
       in addition to posts, default "index.html,404.html"
     required: false
+  allowed_file_extensions:
+    description: >
+      Comma-separated templates extensions that will be copied as is
+      to output directory, default ".jpeg,.jpg,.png,.mp4,.pdf"
+    required: false
 
 outputs:
   result:

@@ -25,13 +25,14 @@ const (
 )
 
 type config struct {
-	Title              string `env:"INPUT_TITLE,required"`
-	ShortDescription   string `env:"INPUT_SHORT_DESCRIPTION,required"`
-	Author             string `env:"INPUT_AUTHOR,required"`
-	SourceDirectory    string `env:"INPUT_SOURCE_DIRECTORY" envDefault:"."`
-	OutputDirectory    string `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"./output"`
-	TemplatesDirectory string `env:"INPUT_TEMPLATES_DIRECTORY" envDefault:"templates"`
-	Templates          string `env:"INPUT_TEMPLATES" envDefault:"index.html,404.html"`
+	Title                 string   `env:"INPUT_TITLE,required"`
+	ShortDescription      string   `env:"INPUT_SHORT_DESCRIPTION,required"`
+	Author                string   `env:"INPUT_AUTHOR,required"`
+	SourceDirectory       string   `env:"INPUT_SOURCE_DIRECTORY" envDefault:"."`
+	OutputDirectory       string   `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"./output"`
+	TemplatesDirectory    string   `env:"INPUT_TEMPLATES_DIRECTORY" envDefault:"templates"`
+	Templates             []string `env:"INPUT_TEMPLATES" envDefault:"index.html,404.html" envSeparator:","`
+	AllowedFileExtensions []string `env:"INPUT_ALLOWED_FILE_EXTENSIONS" envDefault:".jpeg,.jpg,.png,.mp4,.pdf" envSeparator:","`
 	// Template                   string `env:"INPUT_TEMPLATE" envDefault:"acute"`
 	// Timezone                   string `env:"INPUT_TIMEZONE" envDefault:"America/New_York"`
 	// Encoding                   string `env:"INPUT_ENCODING" envDefault:"utf-8"`
@@ -136,7 +137,11 @@ func run() error {
 		}
 	}()
 
-	if err := readSourceDirectory(c.SourceDirectory, filesChannel); err != nil {
+	if err := readSourceDirectory(
+		c.SourceDirectory,
+		c.AllowedFileExtensions,
+		filesChannel,
+	); err != nil {
 		return errors.Wrap(err, "read posts directory")
 	}
 
@@ -147,10 +152,8 @@ func run() error {
 	return processTemplates(t, c.Templates, c.OutputDirectory, posts)
 }
 
-func processTemplates(t *template.Template, templates, outputDir string, posts []*metadata) error {
-	tmpls := strings.Split(templates, ",")
-
-	for _, tmpl := range tmpls {
+func processTemplates(t *template.Template, templates []string, outputDir string, posts []*metadata) error {
+	for _, tmpl := range templates {
 		if t.Lookup(tmpl) == nil {
 			log.Printf("WARNING: template %q not found", tmpl)
 			continue
@@ -210,9 +213,7 @@ func createDirectory(name string) error {
 	return nil
 }
 
-func readSourceDirectory(path string, filesChannel chan string) error {
-	allowedExtensions := []string{".jpeg", ".png", ".mp4"}
-
+func readSourceDirectory(path string, allowedExtensions []string, filesChannel chan string) error {
 	return filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
