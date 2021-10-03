@@ -57,21 +57,21 @@ type metadata struct {
 	Filename string   // set by code
 }
 
-type htmlPage struct {
+type pageData struct {
 	Path     string
 	Metadata *metadata
 	Body     template.HTML
 }
 
-type defaultData struct {
-	htmlPage
-	Posts []*metadata
+type page struct {
+	CurrentPage *pageData
+	AllPages    []*pageData
 }
 
-type ByCreated []*metadata
+type ByCreated []*pageData
 
 func (c ByCreated) Len() int           { return len(c) }
-func (c ByCreated) Less(i, j int) bool { return c[i].Created > c[j].Created }
+func (c ByCreated) Less(i, j int) bool { return c[i].Metadata.Created > c[j].Metadata.Created }
 func (c ByCreated) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
 
 func main() {
@@ -101,9 +101,8 @@ func run() error {
 		return errors.Wrap(err, "templates parsing")
 	}
 
-	// write posts
-	postTemplate := getPostTemplate(t)
-	var posts []*metadata // needed for index.html
+	// scan source directory
+	var pagesData []*pageData
 
 	filesChannel := make(chan string)
 	done := make(chan bool)
@@ -113,17 +112,12 @@ func run() error {
 			path, more := <-filesChannel
 			if more {
 				if strings.HasSuffix(path, ".md") {
-					m, err := convertMarkdownFile(
-						path,
-						c.SourceDirectory,
-						c.OutputDirectory,
-						postTemplate,
-					)
+					p, err := convertMarkdownFile(path, c.SourceDirectory, c.OutputDirectory)
 					if err != nil {
 						log.Printf("ERROR processing markdown file %s: %v", path, err)
 						continue
 					}
-					posts = append(posts, m)
+					pagesData = append(pagesData, p)
 				} else {
 					copyFile(
 						c.SourceDirectory+"/"+path,
@@ -148,28 +142,43 @@ func run() error {
 	close(filesChannel)
 	<-done
 
-	sort.Sort(ByCreated(posts))
-	return processTemplates(t, c.Templates, c.OutputDirectory, posts)
+	sort.Sort(ByCreated(pagesData))
+
+	if err = renderPages(pagesData, c.OutputDirectory, t.Lookup("post.html")); err != nil {
+		return errors.Wrap(err, "rendering pages")
+	}
+
+	return renderTemplates(t, c.Templates, c.OutputDirectory, pagesData)
 }
 
-func processTemplates(t *template.Template, templates []string, outputDir string, posts []*metadata) error {
+func renderPages(pagesData []*pageData, outputDirectory string, tmpl *template.Template) error {
+	for _, p := range pagesData {
+		if err := renderTemplate(
+			outputDirectory+"/"+p.Metadata.Filename,
+			page{
+				CurrentPage: p,
+				AllPages:    pagesData,
+			},
+			tmpl,
+		); err != nil {
+			return errors.Wrapf(err, "rendering page %q", p.Path)
+		}
+	}
+	return nil
+}
+
+func renderTemplates(t *template.Template, templates []string, outputDir string, pagesData []*pageData) error {
 	for _, tmpl := range templates {
 		if t.Lookup(tmpl) == nil {
 			log.Printf("WARNING: template %q not found", tmpl)
 			continue
 		}
 
-		err := writeFile(
+		err := renderTemplate(
 			outputDir+"/"+tmpl,
-			defaultData{
-				htmlPage: htmlPage{
-					Metadata: &metadata{
-						Title: "Hello",
-					},
-					Body: template.HTML(``),
-					Path: "",
-				},
-				Posts: posts,
+			page{
+				CurrentPage: nil,
+				AllPages:    pagesData,
 			},
 			t.Lookup(tmpl),
 		)
@@ -245,7 +254,7 @@ func inArray(s []string, needle string) bool {
 	return false
 }
 
-func convertMarkdownFile(path, source, output string, tpl *template.Template) (*metadata, error) {
+func convertMarkdownFile(path, source, output string) (*pageData, error) {
 	b, err := ioutil.ReadFile(source + "/" + path)
 	if err != nil {
 		return nil, errors.Wrapf(err, "read file %s", path)
@@ -258,18 +267,15 @@ func convertMarkdownFile(path, source, output string, tpl *template.Template) (*
 		return nil, errors.Wrapf(err, "build metadata %s", path)
 	}
 
+	m.Filename = strings.Replace(path, ".md", ".html", 1)
+
 	htmlBody := markdown.ToHTML(bodyBytes, nil, nil)
 
-	data := htmlPage{
+	return &pageData{
 		Metadata: m,
 		Body:     template.HTML(string(htmlBody)),
 		Path:     path,
-	}
-
-	m.Filename = strings.Replace(path, ".md", ".html", 1)
-	filename := output + "/" + m.Filename
-
-	return m, writeFile(filename, data, tpl)
+	}, nil
 }
 
 func getMetadataAndBody(b []byte) ([]byte, []byte) {

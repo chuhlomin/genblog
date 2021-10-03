@@ -12,10 +12,12 @@ import (
 const templatePost = "post.html"
 
 var fm = template.FuncMap{
-	"back": back,
+	"back":     back,
+	"prevPage": prevPage,
+	"nextPage": nextPage,
 }
 
-func writeFile(filename string, data interface{}, t *template.Template) error {
+func renderTemplate(filename string, data interface{}, t *template.Template) error {
 	// create directories for file
 	dir := filepath.Dir(filename)
 	if err := os.MkdirAll("./"+dir, permDir); err != nil {
@@ -56,10 +58,38 @@ func getPostTemplate(t *template.Template) *template.Template {
 	return t
 }
 
+func parseFiles(funcs template.FuncMap, filenames ...string) (*template.Template, error) {
+	return template.New(filepath.Base(filenames[0])).Funcs(funcs).ParseFiles(filenames...)
+}
+
 func back(path string) string {
 	return strings.Repeat("../", len(strings.Split(path, "/"))-1)
 }
 
-func parseFiles(funcs template.FuncMap, filenames ...string) (*template.Template, error) {
-	return template.New(filepath.Base(filenames[0])).Funcs(funcs).ParseFiles(filenames...)
+func prevPage(page page) (prev *pageData) {
+	prev = nil
+
+	for i, p := range page.AllPages {
+		if p.Path == page.CurrentPage.Path {
+			if i < len(page.AllPages)-1 {
+				prev = page.AllPages[i+1]
+			}
+			break
+		}
+	}
+
+	return
+}
+
+func nextPage(page page) (next *pageData) {
+	next = nil
+
+	for _, p := range page.AllPages {
+		if p.Path == page.CurrentPage.Path {
+			break
+		}
+		next = p
+	}
+
+	return
 }
