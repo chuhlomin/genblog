@@ -211,6 +211,8 @@ func createDirectory(name string) error {
 }
 
 func readSourceDirectory(path string, filesChannel chan string) error {
+	allowedExtensions := []string{".jpeg", ".png", ".mp4"}
+
 	return filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -220,12 +222,26 @@ func readSourceDirectory(path string, filesChannel chan string) error {
 			return nil
 		}
 
+		if strings.HasPrefix(path, "output") {
+			return nil
+		}
+
 		ext := filepath.Ext(path)
-		if (ext == ".md" && path != "README.md") || ext == ".jpeg" || ext == ".mp4" {
+
+		if (ext == ".md" && path != "README.md") || inArray(allowedExtensions, ext) {
 			filesChannel <- path
 		}
 		return nil
 	})
+}
+
+func inArray(s []string, needle string) bool {
+	for _, s := range s {
+		if s == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func convertMarkdownFile(path, source, output string, tpl *template.Template) (*metadata, error) {
