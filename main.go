@@ -205,8 +205,11 @@ func renderTemplates(
 		})
 	}
 
-	for id, pages := range customPages {
+	for _, pages := range customPages {
+		sort.Sort(ByLanguage(pages))
+
 		for _, p := range pages {
+
 			tmpl := t.Lookup(p.Path)
 			if tmpl == nil {
 				log.Printf("WARNING: template %q not found", p.Path)
@@ -218,7 +221,7 @@ func renderTemplates(
 				page{
 					CurrentPage:           p,
 					AllPages:              pagesData,
-					AllLanguageVariations: customPages[id],
+					AllLanguageVariations: pages,
 				},
 				tmpl,
 			)
@@ -321,8 +324,6 @@ func convertMarkdownFile(path, source, output, defaultLanguage string) (*pageDat
 	m.Language = strings.ToLower(m.Language)
 
 	path = strings.Replace(path, ".md", ".html", 1)
-
-	log.Printf(path + " → " + id)
 
 	htmlBody := markdown.ToHTML(bodyBytes, nil, nil)
 

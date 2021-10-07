@@ -217,3 +217,38 @@ func TestNextPage(t *testing.T) {
 		require.Equal(t, test.prevPage, pp, "prev page")
 	}
 }
+
+func TestGetLanguageFromFilename(t *testing.T) {
+	tests := []struct {
+		filename string
+		id       string
+		lang     string
+	}{
+		{
+			filename: "index.html",
+			id:       "index.html",
+			lang:     "",
+		},
+		{
+			filename: "index_en.html",
+			id:       "index.html",
+			lang:     "en",
+		},
+		{
+			filename: "index_ru.html",
+			id:       "index.html",
+			lang:     "ru",
+		},
+		{
+			filename: "index",
+			id:       "index",
+			lang:     "",
+		},
+	}
+
+	for _, test := range tests {
+		id, lang := getLanguageFromFilename(test.filename)
+		require.Equal(t, test.id, id, "id")
+		require.Equal(t, test.lang, lang, "lang")
+	}
+}
