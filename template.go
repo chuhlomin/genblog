@@ -4,6 +4,7 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -12,9 +13,10 @@ import (
 const templatePost = "post.html"
 
 var fm = template.FuncMap{
-	"back":     back,
-	"prevPage": prevPage,
-	"nextPage": nextPage,
+	"back":                  back,
+	"prevPage":              prevPage,
+	"nextPage":              nextPage,
+	"allLanguageVariations": allLanguageVariations,
 }
 
 func renderTemplate(filename string, data interface{}, t *template.Template) error {
@@ -39,25 +41,6 @@ func renderTemplate(filename string, data interface{}, t *template.Template) err
 	return nil
 }
 
-func getPostTemplate(t *template.Template) *template.Template {
-	t = t.Lookup(templatePost)
-	if t == nil {
-		return template.Must(
-			template.New(templatePost).Funcs(fm).Parse(`<!DOCTYPE html>
-<html>
-<head>
-<title>{{.Metadata.Title}}</title>
-</head>
-<body>
-{{.Body}}
-</body>
-</html>`),
-		)
-	}
-
-	return t
-}
-
 func parseFiles(funcs template.FuncMap, filenames ...string) (*template.Template, error) {
 	return template.New(filepath.Base(filenames[0])).Funcs(funcs).ParseFiles(filenames...)
 }
@@ -67,13 +50,28 @@ func back(path string) string {
 }
 
 func prevPage(page page) (prev *pageData) {
+	// technically, it get's the NEXT page
+	// from the list of all pages SORTED by created date (descending)
+	// but chronologically, it's the PREVIOUS page
 	prev = nil
 
-	for i, p := range page.AllPages {
-		if p.Path == page.CurrentPage.Path {
-			if i < len(page.AllPages)-1 {
-				prev = page.AllPages[i+1]
-			}
+	var (
+		i int
+		p *pageData
+	)
+
+	for i, p = range page.AllPages {
+		if p.Path == page.CurrentPage.Path { // searching for the current page
+			break
+		}
+	}
+
+	for _, p := range page.AllPages[i+1:] {
+		if p.ID == page.CurrentPage.ID { // skipping same pages in different languages
+			continue
+		}
+		if p.Metadata.Language == page.CurrentPage.Metadata.Language { // first page in the same language
+			prev = p
 			break
 		}
 	}
@@ -82,14 +80,38 @@ func prevPage(page page) (prev *pageData) {
 }
 
 func nextPage(page page) (next *pageData) {
+	// technically, it get's the PREVIOUS page
+	// from the list of all pages SORTED by created date (descending)
+	// but chronologically, it's the NEXT page
 	next = nil
 
 	for _, p := range page.AllPages {
-		if p.Path == page.CurrentPage.Path {
+		if p.Path == page.CurrentPage.Path { // searching for the current page
+			break // this is the most recent page, so there's no next page
+		}
+		if p.Metadata.Language == page.CurrentPage.Metadata.Language { // first page in the same language
+			next = p
 			break
 		}
-		next = p
 	}
 
 	return
+}
+
+func allLanguageVariations(page page) []*pageData {
+	if len(page.AllLanguageVariations) > 0 {
+		return page.AllLanguageVariations
+	}
+
+	var result []*pageData
+
+	for _, p := range page.AllPages {
+		if p.ID == page.CurrentPage.ID {
+			result = append(result, p)
+		}
+	}
+
+	sort.Sort(ByLanguage(result))
+
+	return result
 }

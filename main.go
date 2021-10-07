@@ -33,6 +33,7 @@ type config struct {
 	TemplatesDirectory    string   `env:"INPUT_TEMPLATES_DIRECTORY" envDefault:"templates"`
 	Templates             []string `env:"INPUT_TEMPLATES" envDefault:"index.html,404.html" envSeparator:","`
 	AllowedFileExtensions []string `env:"INPUT_ALLOWED_FILE_EXTENSIONS" envDefault:".jpeg,.jpg,.png,.mp4,.pdf" envSeparator:","`
+	DefaultLanguage       string   `env:"INPUT_DEFAULT_LANGUAGE" envDefault:"en"`
 	// Template                   string `env:"INPUT_TEMPLATE" envDefault:"acute"`
 	// Timezone                   string `env:"INPUT_TIMEZONE" envDefault:"America/New_York"`
 	// Encoding                   string `env:"INPUT_ENCODING" envDefault:"utf-8"`
@@ -54,18 +55,20 @@ type metadata struct {
 	Created  string   `yaml:"created"`
 	Title    string   `yaml:"title"`
 	Tags     []string `yaml:"tags"`
-	Filename string   // set by code
+	Language string   `yaml:"language"`
 }
 
 type pageData struct {
+	ID       string // same post in different language will have the same ID value
 	Path     string
 	Metadata *metadata
 	Body     template.HTML
 }
 
 type page struct {
-	CurrentPage *pageData
-	AllPages    []*pageData
+	CurrentPage           *pageData
+	AllPages              []*pageData
+	AllLanguageVariations []*pageData // used only for index.html
 }
 
 type ByCreated []*pageData
@@ -73,6 +76,12 @@ type ByCreated []*pageData
 func (c ByCreated) Len() int           { return len(c) }
 func (c ByCreated) Less(i, j int) bool { return c[i].Metadata.Created > c[j].Metadata.Created }
 func (c ByCreated) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
+
+type ByLanguage []*pageData
+
+func (c ByLanguage) Len() int           { return len(c) }
+func (c ByLanguage) Less(i, j int) bool { return c[i].Metadata.Language > c[j].Metadata.Language }
+func (c ByLanguage) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
 
 func main() {
 	log.Println("Starting")
@@ -112,7 +121,12 @@ func run() error {
 			path, more := <-filesChannel
 			if more {
 				if strings.HasSuffix(path, ".md") {
-					p, err := convertMarkdownFile(path, c.SourceDirectory, c.OutputDirectory)
+					p, err := convertMarkdownFile(
+						path,
+						c.SourceDirectory,
+						c.OutputDirectory,
+						c.DefaultLanguage,
+					)
 					if err != nil {
 						log.Printf("ERROR processing markdown file %s: %v", path, err)
 						continue
@@ -148,13 +162,13 @@ func run() error {
 		return errors.Wrap(err, "rendering pages")
 	}
 
-	return renderTemplates(t, c.Templates, c.OutputDirectory, pagesData)
+	return renderTemplates(t, c.Templates, c.OutputDirectory, pagesData, c.DefaultLanguage)
 }
 
 func renderPages(pagesData []*pageData, outputDirectory string, tmpl *template.Template) error {
 	for _, p := range pagesData {
 		if err := renderTemplate(
-			outputDirectory+"/"+p.Metadata.Filename,
+			outputDirectory+"/"+p.Path,
 			page{
 				CurrentPage: p,
 				AllPages:    pagesData,
@@ -167,25 +181,53 @@ func renderPages(pagesData []*pageData, outputDirectory string, tmpl *template.T
 	return nil
 }
 
-func renderTemplates(t *template.Template, templates []string, outputDir string, pagesData []*pageData) error {
-	for _, tmpl := range templates {
-		if t.Lookup(tmpl) == nil {
-			log.Printf("WARNING: template %q not found", tmpl)
-			continue
+func renderTemplates(
+	t *template.Template,
+	templates []string,
+	outputDir string,
+	pagesData []*pageData,
+	defaultLanguage string,
+) error {
+	customPages := make(map[string][]*pageData)
+
+	for _, tmplPath := range templates {
+		id, lang := getLanguageFromFilename(tmplPath)
+		if lang == "" {
+			lang = defaultLanguage
 		}
 
-		err := renderTemplate(
-			outputDir+"/"+tmpl,
-			page{
-				CurrentPage: nil,
-				AllPages:    pagesData,
+		customPages[id] = append(customPages[id], &pageData{
+			ID:   id,
+			Path: tmplPath,
+			Metadata: &metadata{
+				Language: lang,
 			},
-			t.Lookup(tmpl),
-		)
-		if err != nil {
-			return errors.Wrapf(err, "write template %q", tmpl)
+		})
+	}
+
+	for id, pages := range customPages {
+		for _, p := range pages {
+			tmpl := t.Lookup(p.Path)
+			if tmpl == nil {
+				log.Printf("WARNING: template %q not found", p.Path)
+				continue
+			}
+
+			err := renderTemplate(
+				outputDir+"/"+p.Path,
+				page{
+					CurrentPage:           p,
+					AllPages:              pagesData,
+					AllLanguageVariations: customPages[id],
+				},
+				tmpl,
+			)
+			if err != nil {
+				return errors.Wrapf(err, "write template %q", p.Path)
+			}
 		}
 	}
+
 	return nil
 }
 
@@ -254,7 +296,7 @@ func inArray(s []string, needle string) bool {
 	return false
 }
 
-func convertMarkdownFile(path, source, output string) (*pageData, error) {
+func convertMarkdownFile(path, source, output, defaultLanguage string) (*pageData, error) {
 	b, err := ioutil.ReadFile(source + "/" + path)
 	if err != nil {
 		return nil, errors.Wrapf(err, "read file %s", path)
@@ -267,14 +309,28 @@ func convertMarkdownFile(path, source, output string) (*pageData, error) {
 		return nil, errors.Wrapf(err, "build metadata %s", path)
 	}
 
-	m.Filename = strings.Replace(path, ".md", ".html", 1)
+	id := path
+
+	if m.Language == "" {
+		// if file ends with _en.md, use en as language
+		id, m.Language = getLanguageFromFilename(path)
+	}
+	if m.Language == "" {
+		m.Language = defaultLanguage
+	}
+	m.Language = strings.ToLower(m.Language)
+
+	path = strings.Replace(path, ".md", ".html", 1)
+
+	log.Printf(path + " → " + id)
 
 	htmlBody := markdown.ToHTML(bodyBytes, nil, nil)
 
 	return &pageData{
+		ID:       id,
+		Path:     path,
 		Metadata: m,
 		Body:     template.HTML(string(htmlBody)),
-		Path:     path,
 	}, nil
 }
 
@@ -325,4 +381,20 @@ func grabMetadata(m metadata, b []byte) (*metadata, []byte, error) {
 	}
 
 	return &m, b, nil
+}
+
+func getLanguageFromFilename(filename string) (newFilename, lang string) {
+	underscoreIndex := strings.LastIndex(filename, "_")
+	if underscoreIndex == -1 {
+		return filename, ""
+	}
+
+	dotIndex := strings.LastIndex(filename, ".")
+	if dotIndex == -1 {
+		return filename, ""
+	}
+
+	lang = filename[underscoreIndex+1 : dotIndex]
+	newFilename = filename[0:underscoreIndex] + filename[dotIndex:]
+	return
 }
