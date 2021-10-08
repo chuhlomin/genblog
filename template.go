@@ -89,9 +89,9 @@ func nextPage(page page) (next *pageData) {
 		if p.Path == page.CurrentPage.Path { // searching for the current page
 			break // this is the most recent page, so there's no next page
 		}
-		if p.Metadata.Language == page.CurrentPage.Metadata.Language { // first page in the same language
+		if p.Metadata.Language == page.CurrentPage.Metadata.Language {
+			// last seen page in the same language
 			next = p
-			break
 		}
 	}
 

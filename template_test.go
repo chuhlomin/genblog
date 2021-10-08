@@ -140,6 +140,11 @@ func TestNextPage(t *testing.T) {
 				},
 				AllPages: []*pageData{
 					{
+						Path:     "2021/post-3_ru.html",
+						ID:       "2021/post-3.md",
+						Metadata: &metadata{Language: "ru"},
+					},
+					{
 						Path:     "2021/post-2_ru.html",
 						ID:       "2021/post-2.md",
 						Metadata: &metadata{Language: "ru"},
