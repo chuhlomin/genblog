@@ -257,3 +257,29 @@ func TestGetLanguageFromFilename(t *testing.T) {
 		require.Equal(t, test.lang, lang, "lang")
 	}
 }
+
+func TestLangToGetParameter(t *testing.T) {
+	tests := []struct {
+		url             string
+		defaultLanguage string
+		expectedResult  string
+	}{
+		{
+			url:            "/2021/post_ru.html",
+			expectedResult: "/2021/post.html?lang=ru",
+		},
+		{
+			url:            "/2021/post.html",
+			expectedResult: "/2021/post.html",
+		},
+		{
+			url:            "/2021/post_en.html",
+			expectedResult: "/2021/post.html?lang=en",
+		},
+	}
+
+	for _, test := range tests {
+		result := langToGetParameter(test.url)
+		require.Equal(t, test.expectedResult, result)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -17,7 +18,10 @@ var fm = template.FuncMap{
 	"prevPage":              prevPage,
 	"nextPage":              nextPage,
 	"allLanguageVariations": allLanguageVariations,
+	"langToGetParameter":    langToGetParameter,
 }
+
+var langSuffix = regexp.MustCompile(`_([a-z]{2}).html$`)
 
 func renderTemplate(filename string, data interface{}, t *template.Template) error {
 	// create directories for file
@@ -114,4 +118,14 @@ func allLanguageVariations(page page) []*pageData {
 	sort.Sort(ByLanguage(result))
 
 	return result
+}
+
+func langToGetParameter(url string) string {
+	// if url matches langSuffix regex then replace it with .html and append ?lang=ru
+	if langSuffix.MatchString(url) {
+		suffix := langSuffix.FindStringSubmatch(url)
+		return url[:len(url)-len(suffix[0])] + ".html?lang=" + suffix[1]
+	}
+
+	return url
 }
