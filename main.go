@@ -52,10 +52,10 @@ type config struct {
 }
 
 type metadata struct {
-	Created  string   `yaml:"created"`
-	Title    string   `yaml:"title"`
-	Tags     []string `yaml:"tags"`
-	Language string   `yaml:"language"`
+	Created  string        `yaml:"created"`
+	Title    template.HTML `yaml:"title"`
+	Tags     []string      `yaml:"tags"`
+	Language string        `yaml:"language"`
 }
 
 type pageData struct {
@@ -369,7 +369,13 @@ func grabMetadata(m metadata, b []byte) (*metadata, []byte, error) {
 			if !seenHeader {
 				line := scanner.Text()
 				if strings.HasPrefix(line, "# ") {
-					m.Title = strings.TrimSpace(line[2:])
+					m.Title = template.HTML(
+						string(markdown.ToHTML(
+							[]byte(strings.TrimSpace(line[2:])),
+							nil,
+							nil,
+						)),
+					)
 					seenHeader = true
 					continue
 				}
