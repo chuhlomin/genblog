@@ -369,13 +369,9 @@ func grabMetadata(m metadata, b []byte) (*metadata, []byte, error) {
 			if !seenHeader {
 				line := scanner.Text()
 				if strings.HasPrefix(line, "# ") {
-					m.Title = template.HTML(
-						string(markdown.ToHTML(
-							[]byte(strings.TrimSpace(line[2:])),
-							nil,
-							nil,
-						)),
-					)
+					htmlTitle := string(markdown.ToHTML([]byte(strings.TrimSpace(line[2:])), nil, nil))
+					htmlTitle = strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(htmlTitle), "<p>"), "</p>")
+					m.Title = template.HTML(htmlTitle)
 					seenHeader = true
 					continue
 				}
