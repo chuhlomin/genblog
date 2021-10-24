@@ -36,6 +36,21 @@ inputs:
       Comma-separated templates extensions that will be copied as is
       to output directory, default ".jpeg,.jpg,.png,.mp4,.pdf"
     required: false
+  typography_enabled:
+    description: Enable typography, default "false"
+    required: false
+  comments_enabled:
+    description: Enable typography, default "false"
+    required: false
+  comments_site_id:
+    description: Site ID for Remark42 comments, default ""
+    required: false
+  show_social_sharing_buttons:
+    description: Enable social sharing buttons, default "false"
+    required: false
+  show_drafts:
+    description: Show drafts, default "false"
+    required: false
 
 outputs:
   result:

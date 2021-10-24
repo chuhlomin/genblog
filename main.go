@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v6"
+	"github.com/chuhlomin/typograph"
 	"github.com/gomarkdown/markdown"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
@@ -25,37 +26,46 @@ const (
 )
 
 type config struct {
-	Title                 string   `env:"INPUT_TITLE,required"`
-	ShortDescription      string   `env:"INPUT_SHORT_DESCRIPTION,required"`
-	Author                string   `env:"INPUT_AUTHOR,required"`
-	SourceDirectory       string   `env:"INPUT_SOURCE_DIRECTORY" envDefault:"."`
-	OutputDirectory       string   `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"./output"`
-	TemplatesDirectory    string   `env:"INPUT_TEMPLATES_DIRECTORY" envDefault:"templates"`
-	Templates             []string `env:"INPUT_TEMPLATES" envDefault:"index.html,404.html" envSeparator:","`
-	AllowedFileExtensions []string `env:"INPUT_ALLOWED_FILE_EXTENSIONS" envDefault:".jpeg,.jpg,.png,.mp4,.pdf" envSeparator:","`
-	DefaultLanguage       string   `env:"INPUT_DEFAULT_LANGUAGE" envDefault:"en"`
-	// Template                   string `env:"INPUT_TEMPLATE" envDefault:"acute"`
-	// Timezone                   string `env:"INPUT_TIMEZONE" envDefault:"America/New_York"`
-	// Encoding                   string `env:"INPUT_ENCODING" envDefault:"utf-8"`
-	// Language                   string `env:"INPUT_LANGUAGE" envDefault:"en"`
-	// ShowDrafts                 bool   `env:"INPUT_SHOW_DRAFTS"`
-	// Future                     bool   `env:"INPUT_FUTURE"`
-	// PostsPerPage               int    `env:"INPUT_POSTS_PER_PAGE" envDefault:"10"`
-	// DisableTypography          bool   `env:"INPUT_DISABLE_TYPOGRAPHY"`
-	// ShowSocialSharingButtons   bool   `env:"INPUT_SHOW_SOCIAL_SHARING_BUTTONS"`
-	// CommentsAllowByDefault     bool   `env:"INPUT_COMMENTS_ALLOW_BY_DEFAULT" envDefault:"true"`
-	// CommandsOnlyForRecentPosts bool   `env:"INPUT_COMMANDS_ONLY_FOR_RECENT_POSTS"`
-	// CommentsSendByEmail        string `env:"INPUT_COMMENTS_SEND_BY_EMAIL"`
-	// YandexMetrika              string `env:"INPUT_YANDEX_METRIKA"`
-	// GoogleAnalytics            string `env:"INPUT_GOOGLE_ANALYTICS"`
-	// RobotsDisallow             bool   `env:"INPUT_ROBOTS_DISALLOW"`
+	Title                    string   `env:"INPUT_TITLE,required"`
+	ShortDescription         string   `env:"INPUT_SHORT_DESCRIPTION,required"`
+	Author                   string   `env:"INPUT_AUTHOR,required"`
+	SourceDirectory          string   `env:"INPUT_SOURCE_DIRECTORY" envDefault:"."`
+	OutputDirectory          string   `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"./output"`
+	TemplatesDirectory       string   `env:"INPUT_TEMPLATES_DIRECTORY" envDefault:"templates"`
+	Templates                []string `env:"INPUT_TEMPLATES" envDefault:"index.html,404.html" envSeparator:","`
+	AllowedFileExtensions    []string `env:"INPUT_ALLOWED_FILE_EXTENSIONS" envDefault:".jpeg,.jpg,.png,.mp4,.pdf" envSeparator:","`
+	DefaultLanguage          string   `env:"INPUT_DEFAULT_LANGUAGE" envDefault:"en"`
+	TypographyEnabled        bool     `env:"INPUT_TYPOGRAPHY_ENABLED" envDefault:"false"`
+	CommentsEnabled          bool     `env:"INPUT_COMMENTS_ENABLED" endDefault:"true"`
+	CommentsSiteID           string   `env:"INPUT_COMMENTS_SITE_ID" endDefault:""`
+	ShowSocialSharingButtons bool     `env:"INPUT_SHOW_SOCIAL_SHARING_BUTTONS" endDefault:"false"`
+	ShowDrafts               bool     `env:"INPUT_SHOW_DRAFTS" endDefault:"false"`
 }
 
+// metadata is a struct that contains metadata for a post
+// it is used to render the template.
+// Each markdown file may have a header wrapped by `---\n`, eg:
+//    ---
+//    title: "Title"
+//    slug: "title"
+//    date: "2021-10-24"
+//    ---
+//    Page content
 type metadata struct {
-	Created  string        `yaml:"created"`
-	Title    template.HTML `yaml:"title"`
-	Tags     []string      `yaml:"tags"`
-	Language string        `yaml:"language"`
+	Type                     string        `yaml:"type"`                        // page type, by default "post"
+	Title                    template.HTML `yaml:"title"`                       // by default equals to H1 in Markdown file
+	Date                     string        `yaml:"date"`                        // date when post was published, in format "2006-01-02"
+	Tags                     []string      `yaml:"tags"`                        // post tags, by default parsed from the post
+	Language                 string        `yaml:"language"`                    // language ("en", "ru", ...), parsed from filename, overrides config.DefaultLanguage
+	Slug                     string        `yaml:"slug"`                        // slug is used for the URL, by default it's the same as the file path
+	Description              string        `yaml:"description"`                 // description is used for the meta description
+	Author                   string        `yaml:"author"`                      // author is used for the meta author, overrides config.Author
+	Keywords                 string        `yaml:"keywords"`                    // keywords is used for the meta keywords
+	Draft                    bool          `yaml:"draft"`                       // draft is used to mark post as draft
+	Template                 string        `yaml:"template"`                    // template to use in config.TemplatesDirectory, overrides default "post.html"
+	TypographyEnabled        *bool         `yaml:"typography_enabled"`          // typography_enabled overrides config.TypographyEnabled
+	CommentsEnabled          *bool         `yaml:"comments_enabled"`            // comments_enabled overrides config.CommentsEnabled
+	ShowSocialSharingButtons *bool         `yaml:"show_social_sharing_buttons"` // show_social_sharing_buttons is used to show social sharing buttons, overrides config.ShowSocialSharingButtons
 }
 
 type pageData struct {
@@ -69,12 +79,13 @@ type page struct {
 	CurrentPage           *pageData
 	AllPages              []*pageData
 	AllLanguageVariations []*pageData // used only for index.html
+	CommentsSiteID        string
 }
 
 type ByCreated []*pageData
 
 func (c ByCreated) Len() int           { return len(c) }
-func (c ByCreated) Less(i, j int) bool { return c[i].Metadata.Created > c[j].Metadata.Created }
+func (c ByCreated) Less(i, j int) bool { return c[i].Metadata.Date > c[j].Metadata.Date }
 func (c ByCreated) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
 
 type ByLanguage []*pageData
@@ -82,6 +93,8 @@ type ByLanguage []*pageData
 func (c ByLanguage) Len() int           { return len(c) }
 func (c ByLanguage) Less(i, j int) bool { return c[i].Metadata.Language > c[j].Metadata.Language }
 func (c ByLanguage) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
+
+var errSkipDraft = errors.New("skip draft")
 
 func main() {
 	log.Println("Starting")
@@ -121,13 +134,12 @@ func run() error {
 			path, more := <-filesChannel
 			if more {
 				if strings.HasSuffix(path, ".md") {
-					p, err := convertMarkdownFile(
-						path,
-						c.SourceDirectory,
-						c.OutputDirectory,
-						c.DefaultLanguage,
-					)
+					p, err := convertMarkdownFile(path, c)
 					if err != nil {
+						if err == errSkipDraft {
+							log.Printf("DEBUG skipping draft %v", path)
+							continue
+						}
 						log.Printf("ERROR processing markdown file %s: %v", path, err)
 						continue
 					}
@@ -158,20 +170,21 @@ func run() error {
 
 	sort.Sort(ByCreated(pagesData))
 
-	if err = renderPages(pagesData, c.OutputDirectory, t.Lookup("post.html")); err != nil {
+	if err = renderPages(pagesData, c, t.Lookup("post.html")); err != nil {
 		return errors.Wrap(err, "rendering pages")
 	}
 
-	return renderTemplates(t, c.Templates, c.OutputDirectory, pagesData, c.DefaultLanguage)
+	return renderTemplates(t, c, pagesData)
 }
 
-func renderPages(pagesData []*pageData, outputDirectory string, tmpl *template.Template) error {
+func renderPages(pagesData []*pageData, c config, tmpl *template.Template) error {
 	for _, p := range pagesData {
 		if err := renderTemplate(
-			outputDirectory+"/"+p.Path,
+			c.OutputDirectory+"/"+p.Path,
 			page{
-				CurrentPage: p,
-				AllPages:    pagesData,
+				CurrentPage:    p,
+				AllPages:       pagesData,
+				CommentsSiteID: c.CommentsSiteID,
 			},
 			tmpl,
 		); err != nil {
@@ -181,19 +194,13 @@ func renderPages(pagesData []*pageData, outputDirectory string, tmpl *template.T
 	return nil
 }
 
-func renderTemplates(
-	t *template.Template,
-	templates []string,
-	outputDir string,
-	pagesData []*pageData,
-	defaultLanguage string,
-) error {
+func renderTemplates(t *template.Template, c config, pagesData []*pageData) error {
 	customPages := make(map[string][]*pageData)
 
-	for _, tmplPath := range templates {
+	for _, tmplPath := range c.Templates {
 		id, lang := getLanguageFromFilename(tmplPath)
 		if lang == "" {
-			lang = defaultLanguage
+			lang = c.DefaultLanguage
 		}
 
 		customPages[id] = append(customPages[id], &pageData{
@@ -217,7 +224,7 @@ func renderTemplates(
 			}
 
 			err := renderTemplate(
-				outputDir+"/"+p.Path,
+				c.OutputDirectory+"/"+p.Path,
 				page{
 					CurrentPage:           p,
 					AllPages:              pagesData,
@@ -299,8 +306,8 @@ func inArray(s []string, needle string) bool {
 	return false
 }
 
-func convertMarkdownFile(path, source, output, defaultLanguage string) (*pageData, error) {
-	b, err := ioutil.ReadFile(source + "/" + path)
+func convertMarkdownFile(path string, c config) (*pageData, error) {
+	b, err := ioutil.ReadFile(c.SourceDirectory + "/" + path)
 	if err != nil {
 		return nil, errors.Wrapf(err, "read file %s", path)
 	}
@@ -312,6 +319,10 @@ func convertMarkdownFile(path, source, output, defaultLanguage string) (*pageDat
 		return nil, errors.Wrapf(err, "build metadata %s", path)
 	}
 
+	if m.Draft && !c.ShowDrafts {
+		return nil, errSkipDraft
+	}
+
 	id := path
 
 	if m.Language == "" {
@@ -319,19 +330,30 @@ func convertMarkdownFile(path, source, output, defaultLanguage string) (*pageDat
 		id, m.Language = getLanguageFromFilename(path)
 	}
 	if m.Language == "" {
-		m.Language = defaultLanguage
+		m.Language = c.DefaultLanguage
 	}
 	m.Language = strings.ToLower(m.Language)
 
+	if m.CommentsEnabled == nil {
+		m.CommentsEnabled = &c.CommentsEnabled
+	}
+
 	path = strings.Replace(path, ".md", ".html", 1)
 
-	htmlBody := markdown.ToHTML(bodyBytes, nil, nil)
+	bodyBytes = markdown.ToHTML(bodyBytes, nil, nil)
+
+	if m.TypographyEnabled == nil {
+		m.TypographyEnabled = &c.TypographyEnabled
+	}
+	if m.TypographyEnabled != nil && *m.TypographyEnabled {
+		bodyBytes = typograph.NewTypograph().Process(bodyBytes)
+	}
 
 	return &pageData{
 		ID:       id,
 		Path:     path,
 		Metadata: m,
-		Body:     template.HTML(string(htmlBody)),
+		Body:     template.HTML(string(bodyBytes)),
 	}, nil
 }
 

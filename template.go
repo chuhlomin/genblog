@@ -14,6 +14,7 @@ import (
 const templatePost = "post.html"
 
 var fm = template.FuncMap{
+	"bool":                  boolean, // Go teamplates doesn't check value of a pointer
 	"back":                  back,
 	"prevPage":              prevPage,
 	"nextPage":              nextPage,
@@ -47,6 +48,13 @@ func renderTemplate(filename string, data interface{}, t *template.Template) err
 
 func parseFiles(funcs template.FuncMap, filenames ...string) (*template.Template, error) {
 	return template.New(filepath.Base(filenames[0])).Funcs(funcs).ParseFiles(filenames...)
+}
+
+func boolean(ptr *bool) bool {
+	if ptr == nil {
+		return false
+	}
+	return *ptr
 }
 
 func back(path string) string {
