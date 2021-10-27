@@ -32,7 +32,7 @@ type config struct {
 	SourceDirectory          string   `env:"INPUT_SOURCE_DIRECTORY" envDefault:"."`
 	OutputDirectory          string   `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"./output"`
 	TemplatesDirectory       string   `env:"INPUT_TEMPLATES_DIRECTORY" envDefault:"templates"`
-	Templates                []string `env:"INPUT_TEMPLATES" envDefault:"index.html,404.html" envSeparator:","`
+	TemplatePost             string   `env:"INPUT_TEMPLATE_POST" envDefault:"post.html"`
 	AllowedFileExtensions    []string `env:"INPUT_ALLOWED_FILE_EXTENSIONS" envDefault:".jpeg,.jpg,.png,.mp4,.pdf" envSeparator:","`
 	DefaultLanguage          string   `env:"INPUT_DEFAULT_LANGUAGE" envDefault:"en"`
 	TypographyEnabled        bool     `env:"INPUT_TYPOGRAPHY_ENABLED" envDefault:"false"`
@@ -118,9 +118,14 @@ func run() error {
 		return errors.Wrapf(err, "output directory creation %q", c.OutputDirectory)
 	}
 
-	t, err := template.New("templates").Funcs(fm).ParseGlob(c.TemplatesDirectory + "/*")
+	t, err := template.New("").Funcs(fm).ParseGlob(c.TemplatesDirectory + "/*")
 	if err != nil {
 		return errors.Wrap(err, "templates parsing")
+	}
+
+	tp := t.Lookup(c.TemplatePost)
+	if tp == nil {
+		return errors.Errorf("template %q not found", c.TemplatePost)
 	}
 
 	// scan source directory
@@ -170,7 +175,7 @@ func run() error {
 
 	sort.Sort(ByCreated(pagesData))
 
-	if err = renderPages(pagesData, c, t.Lookup("post.html")); err != nil {
+	if err = renderPages(pagesData, c, tp); err != nil {
 		return errors.Wrap(err, "rendering pages")
 	}
 
@@ -195,24 +200,32 @@ func renderPages(pagesData []*pageData, c config, tmpl *template.Template) error
 }
 
 func renderTemplates(t *template.Template, c config, pagesData []*pageData) error {
-	customPages := make(map[string][]*pageData)
+	pagesIDMap := make(map[string][]*pageData)
 
-	for _, tmplPath := range c.Templates {
-		id, lang := getLanguageFromFilename(tmplPath)
+	// group pages by IP
+	for _, tpl := range t.Templates() {
+		// if template starts with underscore
+		// or if template name is empty (root)
+		// or it is a "post" template – skip it
+		if strings.HasPrefix(tpl.Name(), "_") || tpl.Name() == "" || tpl.Name() == c.TemplatePost {
+			continue
+		}
+
+		id, lang := getLanguageFromFilename(tpl.Name())
 		if lang == "" {
 			lang = c.DefaultLanguage
 		}
 
-		customPages[id] = append(customPages[id], &pageData{
+		pagesIDMap[id] = append(pagesIDMap[id], &pageData{
 			ID:   id,
-			Path: tmplPath,
+			Path: tpl.Name(),
 			Metadata: &metadata{
 				Language: lang,
 			},
 		})
 	}
 
-	for _, pages := range customPages {
+	for _, pages := range pagesIDMap {
 		sort.Sort(ByLanguage(pages))
 
 		for _, p := range pages {
