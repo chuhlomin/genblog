@@ -70,7 +70,8 @@ type metadata struct {
 
 type pageData struct {
 	ID       string // same post in different language will have the same ID value
-	Path     string
+	Path     string // path to the generated HTML file
+	Source   string // path to the markdown file
 	Metadata *metadata
 	Body     template.HTML
 }
@@ -319,28 +320,30 @@ func inArray(s []string, needle string) bool {
 	return false
 }
 
-func convertMarkdownFile(path string, c config) (*pageData, error) {
-	b, err := ioutil.ReadFile(c.SourceDirectory + "/" + path)
+func convertMarkdownFile(source string, c config) (*pageData, error) {
+	path := strings.Replace(source, ".md", ".html", 1)
+
+	b, err := ioutil.ReadFile(c.SourceDirectory + "/" + source)
 	if err != nil {
-		return nil, errors.Wrapf(err, "read file %s", path)
+		return nil, errors.Wrapf(err, "read file %s", source)
 	}
 
 	metadataBytes, bodyBytes := getMetadataAndBody(b)
 
 	m, bodyBytes, err := buildMetadata(metadataBytes, bodyBytes)
 	if err != nil {
-		return nil, errors.Wrapf(err, "build metadata %s", path)
+		return nil, errors.Wrapf(err, "build metadata %s", source)
 	}
 
 	if m.Draft && !c.ShowDrafts {
 		return nil, errSkipDraft
 	}
 
-	id := path
+	id := source
 
 	if m.Language == "" {
 		// if file ends with _en.md, use en as language
-		id, m.Language = getLanguageFromFilename(path)
+		id, m.Language = getLanguageFromFilename(source)
 	}
 	if m.Language == "" {
 		m.Language = c.DefaultLanguage
@@ -350,8 +353,6 @@ func convertMarkdownFile(path string, c config) (*pageData, error) {
 	if m.CommentsEnabled == nil {
 		m.CommentsEnabled = &c.CommentsEnabled
 	}
-
-	path = strings.Replace(path, ".md", ".html", 1)
 
 	bodyBytes = markdown.ToHTML(bodyBytes, nil, nil)
 
@@ -365,6 +366,7 @@ func convertMarkdownFile(path string, c config) (*pageData, error) {
 	return &pageData{
 		ID:       id,
 		Path:     path,
+		Source:   source,
 		Metadata: m,
 		Body:     template.HTML(string(bodyBytes)),
 	}, nil
