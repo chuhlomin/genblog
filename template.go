@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"html/template"
 	"os"
 	"path/filepath"
@@ -14,15 +15,17 @@ import (
 const templatePost = "post.html"
 
 var fm = template.FuncMap{
-	"bool":                  boolean, // Go teamplates doesn't check value of a pointer
-	"back":                  back,
-	"prevPage":              prevPage,
-	"nextPage":              nextPage,
-	"allLanguageVariations": allLanguageVariations,
-	"langToGetParameter":    langToGetParameter,
+	"debugJSON":             debugJSON,             // JSON debug print
+	"bool":                  boolean,               // Go teamplates doesn't check value of a pointer
+	"back":                  back,                  // relative path to the root directory from current page
+	"prevPage":              prevPage,              // previous page data
+	"nextPage":              nextPage,              // next page data
+	"allLanguageVariations": allLanguageVariations, // all pages that has the same ID as current page
+	"langGetParameter":      langGetParameter,      // get lang parameter value for page
+	"langToGetParameter":    langToGetParameter,    // replace lang suffix with .html and append ?lang=ru, e.g. index_ru.html -> index.html?lang=ru
 }
 
-var langSuffix = regexp.MustCompile(`_([a-z]{2}).html$`)
+var langSuffix = regexp.MustCompile(`_([a-z]{2}).(html|md)$`)
 
 func renderTemplate(filename string, data interface{}, t *template.Template) error {
 	// create directories for file
@@ -48,6 +51,18 @@ func renderTemplate(filename string, data interface{}, t *template.Template) err
 
 func parseFiles(funcs template.FuncMap, filenames ...string) (*template.Template, error) {
 	return template.New(filepath.Base(filenames[0])).Funcs(funcs).ParseFiles(filenames...)
+}
+
+func debugJSON(v interface{}) string {
+	return string(prettyJSON(v))
+}
+
+func prettyJSON(v interface{}) []byte {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	return b
 }
 
 func boolean(ptr *bool) bool {
@@ -128,11 +143,49 @@ func allLanguageVariations(page page) []*pageData {
 	return result
 }
 
+func langGetParameter(path, defaultLanguage string) string {
+	if !langSuffix.MatchString(path) {
+		return ""
+	}
+
+	match := langSuffix.FindStringSubmatch(path)
+	if len(match) < 2 { // always false, just some extra caution
+		return ""
+	}
+
+	lang := match[1]
+	if lang == defaultLanguage {
+		return ""
+	}
+
+	return "?lang=" + lang
+}
+
 func langToGetParameter(url string) string {
 	// if url matches langSuffix regex then replace it with .html and append ?lang=ru
+	// That trick useful if you have some reverse proxy that rewrite urls
+	// e.g. nginx config like this:
+	//
+	//   # make requests to _ru.html internal
+	//   location ~ "^(.*)_([a-z]){2}.html$" {
+	//     internal;
+	//   }
+	//
+	//   location / {
+	//     # get "lang" parameter value if presented
+	//     set $lang_code "en";
+	//     if ($arg_lang != '') {
+	//       set $lang_code $arg_lang;
+	//     }
+	//
+	//     # if lang is not "en", replace ".html" with "_$lang.html"
+	//     if ($lang_code !~ "en") {
+	//       rewrite ^(.*)\.html$ /$1_$lang_code.html last;
+	//     }
+	//   }
 	if langSuffix.MatchString(url) {
-		suffix := langSuffix.FindStringSubmatch(url)
-		return url[:len(url)-len(suffix[0])] + ".html?lang=" + suffix[1]
+		match := langSuffix.FindStringSubmatch(url)
+		return url[:len(url)-len(match[0])] + ".html?lang=" + match[1]
 	}
 
 	return url

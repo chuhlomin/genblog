@@ -42,6 +42,18 @@ type config struct {
 	ShowDrafts               bool     `env:"INPUT_SHOW_DRAFTS" endDefault:"false"`
 }
 
+type tags []string
+
+func (t *tags) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+
+	*t = strings.Split(s, ", ")
+	return nil
+}
+
 // metadata is a struct that contains metadata for a post
 // it is used to render the template.
 // Each markdown file may have a header wrapped by `---\n`, eg:
@@ -55,7 +67,7 @@ type metadata struct {
 	Type                     string        `yaml:"type"`                        // page type, by default "post"
 	Title                    template.HTML `yaml:"title"`                       // by default equals to H1 in Markdown file
 	Date                     string        `yaml:"date"`                        // date when post was published, in format "2006-01-02"
-	Tags                     []string      `yaml:"tags"`                        // post tags, by default parsed from the post
+	Tags                     tags          `yaml:"tags"`                        // post tags, by default parsed from the post
 	Language                 string        `yaml:"language"`                    // language ("en", "ru", ...), parsed from filename, overrides config.DefaultLanguage
 	Slug                     string        `yaml:"slug"`                        // slug is used for the URL, by default it's the same as the file path
 	Description              string        `yaml:"description"`                 // description is used for the meta description
@@ -69,9 +81,9 @@ type metadata struct {
 }
 
 type pageData struct {
-	ID       string // same post in different language will have the same ID value
+	Source   string // path to the source markdown file
 	Path     string // path to the generated HTML file
-	Source   string // path to the markdown file
+	ID       string // same post in different language will have the same ID value
 	Metadata *metadata
 	Body     template.HTML
 }
@@ -80,6 +92,7 @@ type page struct {
 	CurrentPage           *pageData
 	AllPages              []*pageData
 	AllLanguageVariations []*pageData // used only for index.html
+	DefaultLanguage       string
 	CommentsSiteID        string
 }
 
@@ -114,6 +127,9 @@ func run() error {
 	if err != nil {
 		return errors.Wrap(err, "environment variables parsing")
 	}
+	if c.DefaultLanguage == "" {
+		c.DefaultLanguage = "en"
+	}
 
 	if err = createDirectory(c.OutputDirectory); err != nil {
 		return errors.Wrapf(err, "output directory creation %q", c.OutputDirectory)
@@ -140,7 +156,14 @@ func run() error {
 			path, more := <-filesChannel
 			if more {
 				if strings.HasSuffix(path, ".md") {
-					p, err := convertMarkdownFile(path, c)
+					b, err := ioutil.ReadFile(c.SourceDirectory + "/" + path)
+					if err != nil {
+						log.Printf("ERROR read file %q: %v", c.SourceDirectory+"/"+path, err)
+						continue
+					}
+
+					p, err := process(b, c, path)
+
 					if err != nil {
 						if err == errSkipDraft {
 							log.Printf("DEBUG skipping draft %v", path)
@@ -188,9 +211,10 @@ func renderPages(pagesData []*pageData, c config, tmpl *template.Template) error
 		if err := renderTemplate(
 			c.OutputDirectory+"/"+p.Path,
 			page{
-				CurrentPage:    p,
-				AllPages:       pagesData,
-				CommentsSiteID: c.CommentsSiteID,
+				CurrentPage:     p,
+				AllPages:        pagesData,
+				DefaultLanguage: c.DefaultLanguage,
+				CommentsSiteID:  c.CommentsSiteID,
 			},
 			tmpl,
 		); err != nil {
@@ -320,14 +344,8 @@ func inArray(s []string, needle string) bool {
 	return false
 }
 
-func convertMarkdownFile(source string, c config) (*pageData, error) {
+func process(b []byte, c config, source string) (*pageData, error) {
 	path := strings.Replace(source, ".md", ".html", 1)
-
-	b, err := ioutil.ReadFile(c.SourceDirectory + "/" + source)
-	if err != nil {
-		return nil, errors.Wrapf(err, "read file %s", source)
-	}
-
 	metadataBytes, bodyBytes := getMetadataAndBody(b)
 
 	m, bodyBytes, err := buildMetadata(metadataBytes, bodyBytes)
@@ -383,7 +401,9 @@ func getMetadataAndBody(b []byte) ([]byte, []byte) {
 }
 
 func buildMetadata(metadataBytes []byte, bodyBytes []byte) (*metadata, []byte, error) {
-	m := metadata{}
+	m := metadata{
+		Tags: tags([]string{}), // setting default value, so that there is no need to check for nil in templates
+	}
 	if len(metadataBytes) != 0 {
 		err := yaml.Unmarshal(metadataBytes, &m)
 		if err != nil {
@@ -397,28 +417,40 @@ func buildMetadata(metadataBytes []byte, bodyBytes []byte) (*metadata, []byte, e
 func grabMetadata(m metadata, b []byte) (*metadata, []byte, error) {
 	b = bytes.TrimSpace(b)
 
-	if bytes.HasPrefix(b, []byte("#")) {
-		buf := bytes.Buffer{}
-		seenHeader := false
+	buf := bytes.Buffer{}
+	hasHeader := false
+	hasTags := false
 
-		scanner := bufio.NewScanner(bytes.NewReader(b))
-		for scanner.Scan() {
-			if !seenHeader {
-				line := scanner.Text()
-				if strings.HasPrefix(line, "# ") {
-					htmlTitle := string(markdown.ToHTML([]byte(strings.TrimSpace(line[2:])), nil, nil))
-					htmlTitle = strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(htmlTitle), "<p>"), "</p>")
-					m.Title = template.HTML(htmlTitle)
-					seenHeader = true
-					continue
-				}
-			}
+	scanner := bufio.NewScanner(bytes.NewReader(b))
+	for scanner.Scan() {
+		scanned := scanner.Bytes()
 
-			buf.Write(scanner.Bytes())
-			buf.WriteString("\n")
+		// parse header
+		if bytes.HasPrefix(scanned, []byte("# ")) && !hasHeader {
+			line := scanner.Text()
+			htmlTitle := string(markdown.ToHTML([]byte(strings.TrimSpace(line[2:])), nil, nil))
+			htmlTitle = strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(htmlTitle), "<p>"), "</p>")
+
+			m.Title = template.HTML(htmlTitle)
+			hasHeader = true
+			continue // so that we don't leave header in the body
 		}
-		b = buf.Bytes()
+
+		// parse tags
+		if bytes.HasPrefix(scanned, []byte("#")) && !hasTags {
+			line := scanner.Text()
+			m.Tags = strings.Split(strings.TrimSpace(line), " ")
+			for i, tag := range m.Tags {
+				m.Tags[i] = strings.Trim(tag, "#,")
+			}
+			hasTags = true
+			continue // so that we don't leave tags in the body
+		}
+
+		buf.Write(scanned)
+		buf.WriteString("\n")
 	}
+	b = buf.Bytes()
 
 	return &m, b, nil
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -281,5 +282,50 @@ func TestLangToGetParameter(t *testing.T) {
 	for _, test := range tests {
 		result := langToGetParameter(test.url)
 		require.Equal(t, test.expectedResult, result)
+	}
+}
+
+func TestLangGetParameter(t *testing.T) {
+	tests := []struct {
+		url             string
+		defaultLanguage string
+		getParameter    string
+	}{
+		{
+			url:             "2006/blogpost.html",
+			defaultLanguage: "en",
+			getParameter:    "",
+		},
+		{
+			url:             "2006/blogpost_ru.html",
+			defaultLanguage: "en",
+			getParameter:    "?lang=ru",
+		},
+		{
+			url:             "2006/blogpost_ru.md", // works with both pageData.Path and pageData.ID
+			defaultLanguage: "en",
+			getParameter:    "?lang=ru",
+		},
+		{
+			url:             "2006/blogpost.html",
+			defaultLanguage: "", /* unlikely to happen: func run sets DefaultLanguage="en" */
+			getParameter:    "",
+		},
+		{
+			url:             "2006/blogpost_en.html", // why would you do this?
+			defaultLanguage: "en",
+			getParameter:    "",
+		},
+	}
+
+	for _, test := range tests {
+		getParameter := langGetParameter(test.url, test.defaultLanguage)
+
+		require.Equal(
+			t,
+			test.getParameter,
+			getParameter,
+			fmt.Sprintf("url %q, defaultLanguage %q", test.url, test.defaultLanguage),
+		)
 	}
 }
