@@ -16,6 +16,7 @@ const templatePost = "post.html"
 
 var fm = template.FuncMap{
 	"debugJSON":             debugJSON,             // JSON debug print
+	"join":                  join,                  // alias for strings.Join
 	"bool":                  boolean,               // Go teamplates doesn't check value of a pointer
 	"back":                  back,                  // relative path to the root directory from current page
 	"prevPage":              prevPage,              // previous page data
@@ -63,6 +64,10 @@ func prettyJSON(v interface{}) []byte {
 		panic(err)
 	}
 	return b
+}
+
+func join(elems []string, sep string) string {
+	return strings.Join(elems, sep)
 }
 
 func boolean(ptr *bool) bool {
