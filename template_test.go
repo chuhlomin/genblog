@@ -329,3 +329,24 @@ func TestLangGetParameter(t *testing.T) {
 		)
 	}
 }
+
+func TestYear(t *testing.T) {
+	tests := []struct {
+		date string
+		year string
+	}{
+		{
+			date: "2006-01-02",
+			year: "2006",
+		},
+		{
+			date: "",
+			year: "",
+		},
+	}
+
+	for _, test := range tests {
+		year := year(test.date)
+		require.Equal(t, test.year, year)
+	}
+}

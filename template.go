@@ -24,6 +24,7 @@ var fm = template.FuncMap{
 	"allLanguageVariations": allLanguageVariations, // all pages that has the same ID as current page
 	"langGetParameter":      langGetParameter,      // get lang parameter value for page
 	"langToGetParameter":    langToGetParameter,    // replace lang suffix with .html and append ?lang=ru, e.g. index_ru.html -> index.html?lang=ru
+	"year":                  year,                  // gets the year from date of format "2006-01-02"
 }
 
 var langSuffix = regexp.MustCompile(`_([a-z]{2}).(html|md)$`)
@@ -194,4 +195,12 @@ func langToGetParameter(url string) string {
 	}
 
 	return url
+}
+
+func year(date string) string {
+	if len(date) < 4 {
+		return ""
+	}
+
+	return date[:4]
 }
