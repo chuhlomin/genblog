@@ -21,17 +21,18 @@ jobs:
           username: chuhlomin
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Prepare Docker tags and labels
-        id: docker_meta
-        uses: crazy-max/ghaction-docker-meta@v1
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v3
         with:
-          images: ${{ env.DOCKER_IMAGE }}
-          tag-sha: true
+          images: {{ env.DOCKER_IMAGE }}
+          tags: v0.1
 
-      - name: Build and push to CR
+      - name: Build and push
         uses: docker/build-push-action@v2
         with:
           context: .
+          file: ./Dockerfile
           push: true
-          tags: chuhlomin/genblog@v0.1
-          labels: ${{ steps.docker_meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
