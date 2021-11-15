@@ -25,6 +25,7 @@ var fm = template.FuncMap{
 	"langGetParameter":      langGetParameter,      // get lang parameter value for page
 	"langToGetParameter":    langToGetParameter,    // replace lang suffix with .html and append ?lang=ru, e.g. index_ru.html -> index.html?lang=ru
 	"year":                  year,                  // gets the year from date of format "2006-01-02"
+	"filepathBase":          filepathBase,          // returns the last path element
 }
 
 var langSuffix = regexp.MustCompile(`_([a-z]{2}).(html|md)$`)
@@ -203,4 +204,8 @@ func year(date string) string {
 	}
 
 	return date[:4]
+}
+
+func filepathBase(path string) string {
+	return filepath.Base(path)
 }
