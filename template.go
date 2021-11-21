@@ -28,6 +28,7 @@ var fm = template.FuncMap{
 	"year":                  year,                  // gets the year from date of format "2006-01-02"
 	"filepathBase":          filepathBase,          // returns the last path element
 	"i18n":                  i18n,                  // translate string
+	"stripTags":             stripTags,             // remove html tags
 }
 
 var langSuffix = regexp.MustCompile(`_([a-z]{2}).(html|md)$`)
@@ -223,4 +224,9 @@ func i18n(id string, lang string) string {
 	}
 
 	return str
+}
+
+func stripTags(html string) string {
+	htmlTagRegexp := regexp.MustCompile("<[^>]*>")
+	return htmlTagRegexp.ReplaceAllString(html, "")
 }

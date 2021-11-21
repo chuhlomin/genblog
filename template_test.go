@@ -379,3 +379,27 @@ func TestFilepathBase(t *testing.T) {
 		require.Equal(t, test.last, last)
 	}
 }
+
+func TestStripTags(t *testing.T) {
+	tests := []struct {
+		in  string
+		out string
+	}{
+		{
+			in:  "Text <tag>123</tag>",
+			out: "Text 123",
+		},
+		{
+			in:  "Text",
+			out: "Text",
+		},
+		{
+			in:  "",
+			out: "",
+		},
+	}
+
+	for _, test := range tests {
+		require.Equal(t, test.out, stripTags(test.in))
+	}
+}
