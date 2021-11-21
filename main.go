@@ -13,10 +13,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/caarlos0/env/v6"
 	"github.com/chuhlomin/typograph"
 	"github.com/gomarkdown/markdown"
+	i "github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
+	"golang.org/x/text/language"
 	"gopkg.in/yaml.v2"
 )
 
@@ -110,6 +113,8 @@ func (c ByLanguage) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
 
 var errSkipDraft = errors.New("skip draft")
 
+var bundle *i.Bundle
+
 func main() {
 	log.Println("Starting")
 	t := time.Now()
@@ -130,6 +135,13 @@ func run() error {
 	if c.DefaultLanguage == "" {
 		c.DefaultLanguage = "en"
 	}
+
+	lang, err := language.Parse(c.DefaultLanguage)
+	if err != nil {
+		return errors.Wrapf(err, "parse language %q", c.DefaultLanguage)
+	}
+	bundle = i.NewBundle(lang) // used in templates/i18n to get translated strings
+	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
 
 	if err = createDirectory(c.OutputDirectory); err != nil {
 		return errors.Wrapf(err, "output directory creation %q", c.OutputDirectory)
@@ -155,7 +167,8 @@ func run() error {
 		for {
 			path, more := <-filesChannel
 			if more {
-				if strings.HasSuffix(path, ".md") {
+				switch filepath.Ext(path) {
+				case ".md":
 					b, err := ioutil.ReadFile(c.SourceDirectory + "/" + path)
 					if err != nil {
 						log.Printf("ERROR read file %q: %v", c.SourceDirectory+"/"+path, err)
@@ -173,7 +186,12 @@ func run() error {
 						continue
 					}
 					pagesData = append(pagesData, p)
-				} else {
+				case ".toml":
+					_, err := bundle.LoadMessageFile(c.SourceDirectory + "/" + path)
+					if err != nil {
+						log.Printf("ERROR load message file %q: %v", c.SourceDirectory+"/"+path, err)
+					}
+				default:
 					copyFile(
 						c.SourceDirectory+"/"+path,
 						c.OutputDirectory+"/"+path,
@@ -331,6 +349,9 @@ func readSourceDirectory(path string, allowedExtensions []string, filesChannel c
 		if (ext == ".md" && path != "README.md") || inArray(allowedExtensions, ext) {
 			filesChannel <- path
 		}
+		if ext == ".toml" {
+			filesChannel <- path
+		}
 		return nil
 	})
 }
@@ -344,6 +365,7 @@ func inArray(s []string, needle string) bool {
 	return false
 }
 
+// process parses markdown file and returns pageData
 func process(b []byte, c config, source string) (*pageData, error) {
 	path := strings.Replace(source, ".md", ".html", 1)
 	metadataBytes, bodyBytes := getMetadataAndBody(b)

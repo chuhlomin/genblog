@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	i "github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
 )
 
@@ -26,6 +27,7 @@ var fm = template.FuncMap{
 	"langToGetParameter":    langToGetParameter,    // replace lang suffix with .html and append ?lang=ru, e.g. index_ru.html -> index.html?lang=ru
 	"year":                  year,                  // gets the year from date of format "2006-01-02"
 	"filepathBase":          filepathBase,          // returns the last path element
+	"i18n":                  i18n,                  // translate string
 }
 
 var langSuffix = regexp.MustCompile(`_([a-z]{2}).(html|md)$`)
@@ -208,4 +210,17 @@ func year(date string) string {
 
 func filepathBase(path string) string {
 	return filepath.Base(path)
+}
+
+func i18n(id string, lang string) string {
+	localizer := i.NewLocalizer(bundle, lang)
+	str, err := localizer.Localize(&i.LocalizeConfig{
+		MessageID: id,
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	return str
 }
