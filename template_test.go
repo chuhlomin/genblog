@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"html/template"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -382,11 +383,11 @@ func TestFilepathBase(t *testing.T) {
 
 func TestStripTags(t *testing.T) {
 	tests := []struct {
-		in  string
+		in  template.HTML
 		out string
 	}{
 		{
-			in:  "Text <tag>123</tag>",
+			in:  template.HTML("Text <tag>123</tag>"),
 			out: "Text 123",
 		},
 		{

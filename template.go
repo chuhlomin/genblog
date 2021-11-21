@@ -226,7 +226,7 @@ func i18n(id string, lang string) string {
 	return str
 }
 
-func stripTags(html string) string {
+func stripTags(html template.HTML) string {
 	htmlTagRegexp := regexp.MustCompile("<[^>]*>")
-	return htmlTagRegexp.ReplaceAllString(html, "")
+	return htmlTagRegexp.ReplaceAllString(string(html), "")
 }
