@@ -224,8 +224,16 @@ func run() error {
 	return renderTemplates(t, c, pagesData)
 }
 
-func renderPages(pagesData []*pageData, c config, tmpl *template.Template) error {
+func renderPages(pagesData []*pageData, c config, defaultTmpl *template.Template) error {
 	for _, p := range pagesData {
+		tmpl := defaultTmpl
+		if p.Metadata.Template != "" {
+			tmpl = defaultTmpl.Lookup(p.Metadata.Template)
+			if tmpl == nil {
+				return errors.Errorf("template %q not found", p.Metadata.Template)
+			}
+		}
+
 		if err := renderTemplate(
 			c.OutputDirectory+"/"+p.Path,
 			page{
