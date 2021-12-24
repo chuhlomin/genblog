@@ -2,12 +2,12 @@ package main
 
 import (
 	"encoding/json"
-	"html/template"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"text/template"
 
 	i "github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
@@ -226,7 +226,7 @@ func i18n(id string, lang string) string {
 	return str
 }
 
-func stripTags(html template.HTML) string {
+func stripTags(html string) string {
 	htmlTagRegexp := regexp.MustCompile("<[^>]*>")
 	return htmlTagRegexp.ReplaceAllString(string(html), "")
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"html/template"
 	"io"
 	"io/ioutil"
 	"log"
@@ -11,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -67,20 +67,20 @@ func (t *tags) UnmarshalYAML(unmarshal func(interface{}) error) error {
 //    ---
 //    Page content
 type metadata struct {
-	Type                     string        `yaml:"type"`                        // page type, by default "post"
-	Title                    template.HTML `yaml:"title"`                       // by default equals to H1 in Markdown file
-	Date                     string        `yaml:"date"`                        // date when post was published, in format "2006-01-02"
-	Tags                     tags          `yaml:"tags"`                        // post tags, by default parsed from the post
-	Language                 string        `yaml:"language"`                    // language ("en", "ru", ...), parsed from filename, overrides config.DefaultLanguage
-	Slug                     string        `yaml:"slug"`                        // slug is used for the URL, by default it's the same as the file path
-	Description              string        `yaml:"description"`                 // description is used for the meta description
-	Author                   string        `yaml:"author"`                      // author is used for the meta author, overrides config.Author
-	Keywords                 string        `yaml:"keywords"`                    // keywords is used for the meta keywords
-	Draft                    bool          `yaml:"draft"`                       // draft is used to mark post as draft
-	Template                 string        `yaml:"template"`                    // template to use in config.TemplatesDirectory, overrides default "post.html"
-	TypographyEnabled        *bool         `yaml:"typography_enabled"`          // typography_enabled overrides config.TypographyEnabled
-	CommentsEnabled          *bool         `yaml:"comments_enabled"`            // comments_enabled overrides config.CommentsEnabled
-	ShowSocialSharingButtons *bool         `yaml:"show_social_sharing_buttons"` // show_social_sharing_buttons is used to show social sharing buttons, overrides config.ShowSocialSharingButtons
+	Type                     string `yaml:"type"`                        // page type, by default "post"
+	Title                    string `yaml:"title"`                       // by default equals to H1 in Markdown file
+	Date                     string `yaml:"date"`                        // date when post was published, in format "2006-01-02"
+	Tags                     tags   `yaml:"tags"`                        // post tags, by default parsed from the post
+	Language                 string `yaml:"language"`                    // language ("en", "ru", ...), parsed from filename, overrides config.DefaultLanguage
+	Slug                     string `yaml:"slug"`                        // slug is used for the URL, by default it's the same as the file path
+	Description              string `yaml:"description"`                 // description is used for the meta description
+	Author                   string `yaml:"author"`                      // author is used for the meta author, overrides config.Author
+	Keywords                 string `yaml:"keywords"`                    // keywords is used for the meta keywords
+	Draft                    bool   `yaml:"draft"`                       // draft is used to mark post as draft
+	Template                 string `yaml:"template"`                    // template to use in config.TemplatesDirectory, overrides default "post.html"
+	TypographyEnabled        *bool  `yaml:"typography_enabled"`          // typography_enabled overrides config.TypographyEnabled
+	CommentsEnabled          *bool  `yaml:"comments_enabled"`            // comments_enabled overrides config.CommentsEnabled
+	ShowSocialSharingButtons *bool  `yaml:"show_social_sharing_buttons"` // show_social_sharing_buttons is used to show social sharing buttons, overrides config.ShowSocialSharingButtons
 }
 
 type pageData struct {
@@ -88,7 +88,7 @@ type pageData struct {
 	Path     string // path to the generated HTML file
 	ID       string // same post in different language will have the same ID value
 	Metadata *metadata
-	Body     template.HTML
+	Body     string
 }
 
 type page struct {
@@ -196,6 +196,11 @@ func run() error {
 					}
 
 					p, err := process(b, c, path)
+					if p == nil {
+						log.Printf("ERROR failed to process file: %q", c.SourceDirectory+"/"+path)
+						continue
+					}
+
 					if p.Metadata.Language == c.DefaultLanguage {
 						tagsCounter.Add(p.Metadata.Tags)
 					}
@@ -244,18 +249,7 @@ func run() error {
 		return errors.Wrap(err, "rendering pages")
 	}
 
-	log.Println("Tags counts:")
-	p := make(PairList, len(tagsCounter))
-	i := 0
-	for k, v := range tagsCounter {
-		p[i] = Pair{k, v}
-		i++
-	}
-	sort.Sort(sort.Reverse(p))
-
-	for _, k := range p {
-		log.Printf("  %v: %v", k.Key, k.Value)
-	}
+	printTagsStags(tagsCounter)
 
 	return renderTemplates(t, c, pagesData)
 }
@@ -452,7 +446,7 @@ func process(b []byte, c config, source string) (*pageData, error) {
 		Path:     path,
 		Source:   source,
 		Metadata: m,
-		Body:     template.HTML(string(bodyBytes)),
+		Body:     string(bodyBytes),
 	}, nil
 }
 
@@ -497,7 +491,7 @@ func grabMetadata(m metadata, b []byte) (*metadata, []byte, error) {
 			htmlTitle := string(markdown.ToHTML([]byte(strings.TrimSpace(line[2:])), nil, nil))
 			htmlTitle = strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(htmlTitle), "<p>"), "</p>")
 
-			m.Title = template.HTML(htmlTitle)
+			m.Title = htmlTitle
 			hasHeader = true
 			continue // so that we don't leave header in the body
 		}
@@ -535,4 +529,19 @@ func getLanguageFromFilename(filename string) (newFilename, lang string) {
 	lang = filename[underscoreIndex+1 : dotIndex]
 	newFilename = filename[0:underscoreIndex] + filename[dotIndex:]
 	return
+}
+
+func printTagsStags(tagsCounter TagsCounterList) {
+	log.Println("Tags counts:")
+	p := make(PairList, len(tagsCounter))
+	i := 0
+	for k, v := range tagsCounter {
+		p[i] = Pair{k, v}
+		i++
+	}
+	sort.Sort(sort.Reverse(p))
+
+	for _, k := range p {
+		log.Printf("  %v: %v", k.Key, k.Value)
+	}
 }

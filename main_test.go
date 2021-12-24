@@ -1,7 +1,6 @@
 package main
 
 import (
-	"html/template"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -36,7 +35,7 @@ func TestProcess(t *testing.T) {
 					CommentsEnabled:   boolPtr(false),
 					TypographyEnabled: boolPtr(false),
 				},
-				Body: template.HTML("<p>Post body</p>\n"),
+				Body: "<p>Post body</p>\n",
 			},
 		},
 		{
@@ -58,7 +57,7 @@ func TestProcess(t *testing.T) {
 					CommentsEnabled:   boolPtr(false),
 					TypographyEnabled: boolPtr(false),
 				},
-				Body: template.HTML("<p>Post body</p>\n"),
+				Body: "<p>Post body</p>\n",
 			},
 		},
 		{
@@ -78,7 +77,7 @@ func TestProcess(t *testing.T) {
 					CommentsEnabled:   boolPtr(false),
 					TypographyEnabled: boolPtr(false),
 				},
-				Body: template.HTML(""),
+				Body: "",
 			},
 		},
 	}
