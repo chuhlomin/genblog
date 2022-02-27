@@ -173,6 +173,12 @@ func TestProcessTags(t *testing.T) {
 			c:           config{},
 			tags:        tags([]string{"tvshow"}),
 		},
+		{
+			description: "Code commends are not tags",
+			b:           []byte("---\ndate: 2006-01-02\n---\nSome text\n```\n# comment\n```\n---\n\n#cli\n\n"),
+			c:           config{},
+			tags:        tags([]string{"cli"}),
+		},
 	}
 
 	for _, test := range tests {
