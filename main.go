@@ -3,11 +3,17 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha1"
+	"encoding/hex"
+	goimage "image"
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"text/template"
@@ -16,6 +22,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/caarlos0/env/v6"
 	"github.com/chuhlomin/typograph"
+	"github.com/disintegration/imaging"
 	"github.com/gomarkdown/markdown"
 	i "github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
@@ -39,10 +46,13 @@ type config struct {
 	AllowedFileExtensions    []string `env:"INPUT_ALLOWED_FILE_EXTENSIONS" envDefault:".jpeg,.jpg,.png,.mp4,.pdf" envSeparator:","`
 	DefaultLanguage          string   `env:"INPUT_DEFAULT_LANGUAGE" envDefault:"en"`
 	TypographyEnabled        bool     `env:"INPUT_TYPOGRAPHY_ENABLED" envDefault:"false"`
-	CommentsEnabled          bool     `env:"INPUT_COMMENTS_ENABLED" endDefault:"true"`
-	CommentsSiteID           string   `env:"INPUT_COMMENTS_SITE_ID" endDefault:""`
-	ShowSocialSharingButtons bool     `env:"INPUT_SHOW_SOCIAL_SHARING_BUTTONS" endDefault:"false"`
-	ShowDrafts               bool     `env:"INPUT_SHOW_DRAFTS" endDefault:"false"`
+	CommentsEnabled          bool     `env:"INPUT_COMMENTS_ENABLED" envDefault:"true"`
+	CommentsSiteID           string   `env:"INPUT_COMMENTS_SITE_ID" envDefault:""`
+	ShowSocialSharingButtons bool     `env:"INPUT_SHOW_SOCIAL_SHARING_BUTTONS" envDefault:"false"`
+	ShowDrafts               bool     `env:"INPUT_SHOW_DRAFTS" envDefault:"false"`
+	ThumbPath                string   `env:"INPUT_THUMB_PATH" envDefault:"thumb"`
+	ThumbMaxWidth            int      `env:"INPUT_THUMB_MAX_WIDTH" envDefault:"140"`
+	ThumbMaxHeight           int      `env:"INPUT_THUMB_MAX_HEIGHT" envDefault:"140"`
 }
 
 type tags []string
@@ -57,6 +67,14 @@ func (t *tags) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// image is a struct that contains metadata of image from the post
+type image struct {
+	Path      string `yaml:"path"`
+	Alt       string `yaml:"alt"`
+	Title     string `yaml:"title"`
+	ThumbPath string `yaml:"thumb_path"`
+}
+
 // metadata is a struct that contains metadata for a post
 // it is used to render the template.
 // Each markdown file may have a header wrapped by `---\n`, eg:
@@ -67,20 +85,21 @@ func (t *tags) UnmarshalYAML(unmarshal func(interface{}) error) error {
 //    ---
 //    Page content
 type metadata struct {
-	Type                     string `yaml:"type"`                        // page type, by default "post"
-	Title                    string `yaml:"title"`                       // by default equals to H1 in Markdown file
-	Date                     string `yaml:"date"`                        // date when post was published, in format "2006-01-02"
-	Tags                     tags   `yaml:"tags"`                        // post tags, by default parsed from the post
-	Language                 string `yaml:"language"`                    // language ("en", "ru", ...), parsed from filename, overrides config.DefaultLanguage
-	Slug                     string `yaml:"slug"`                        // slug is used for the URL, by default it's the same as the file path
-	Description              string `yaml:"description"`                 // description is used for the meta description
-	Author                   string `yaml:"author"`                      // author is used for the meta author, overrides config.Author
-	Keywords                 string `yaml:"keywords"`                    // keywords is used for the meta keywords
-	Draft                    bool   `yaml:"draft"`                       // draft is used to mark post as draft
-	Template                 string `yaml:"template"`                    // template to use in config.TemplatesDirectory, overrides default "post.html"
-	TypographyEnabled        *bool  `yaml:"typography_enabled"`          // typography_enabled overrides config.TypographyEnabled
-	CommentsEnabled          *bool  `yaml:"comments_enabled"`            // comments_enabled overrides config.CommentsEnabled
-	ShowSocialSharingButtons *bool  `yaml:"show_social_sharing_buttons"` // show_social_sharing_buttons is used to show social sharing buttons, overrides config.ShowSocialSharingButtons
+	Type                     string  `yaml:"type"`                        // page type, by default "post"
+	Title                    string  `yaml:"title"`                       // by default equals to H1 in Markdown file
+	Date                     string  `yaml:"date"`                        // date when post was published, in format "2006-01-02"
+	Tags                     tags    `yaml:"tags"`                        // post tags, by default parsed from the post
+	Language                 string  `yaml:"language"`                    // language ("en", "ru", ...), parsed from filename, overrides config.DefaultLanguage
+	Slug                     string  `yaml:"slug"`                        // slug is used for the URL, by default it's the same as the file path
+	Description              string  `yaml:"description"`                 // description is used for the meta description
+	Author                   string  `yaml:"author"`                      // author is used for the meta author, overrides config.Author
+	Keywords                 string  `yaml:"keywords"`                    // keywords is used for the meta keywords
+	Draft                    bool    `yaml:"draft"`                       // draft is used to mark post as draft
+	Template                 string  `yaml:"template"`                    // template to use in config.TemplatesDirectory, overrides default "post.html"
+	TypographyEnabled        *bool   `yaml:"typography_enabled"`          // typography_enabled overrides config.TypographyEnabled
+	CommentsEnabled          *bool   `yaml:"comments_enabled"`            // comments_enabled overrides config.CommentsEnabled
+	ShowSocialSharingButtons *bool   `yaml:"show_social_sharing_buttons"` // show_social_sharing_buttons is used to show social sharing buttons, overrides config.ShowSocialSharingButtons
+	Images                   []image `yaml:"images"`                      // images in the post
 }
 
 type pageData struct {
@@ -180,12 +199,14 @@ func run() error {
 	var pagesData []*pageData
 	tagsCounter := TagsCounterList{}
 
-	filesChannel := make(chan string)
-	done := make(chan bool)
+	channelFiles := make(chan string)
+	channelImages := make(chan image, 100)
+	doneFiles := make(chan bool)
+	doneImages := make(chan bool)
 
 	go func() {
 		for {
-			path, more := <-filesChannel
+			path, more := <-channelFiles
 			if more {
 				switch filepath.Ext(path) {
 				case ".md":
@@ -199,6 +220,10 @@ func run() error {
 					if p == nil {
 						log.Printf("ERROR failed to process file: %q", c.SourceDirectory+"/"+path)
 						continue
+					}
+
+					for _, image := range p.Metadata.Images {
+						channelImages <- image
 					}
 
 					if p.Metadata.Language == c.DefaultLanguage {
@@ -226,7 +251,27 @@ func run() error {
 					)
 				}
 			} else {
-				done <- true
+				doneFiles <- true
+				return
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			img, more := <-channelImages
+			if more {
+				if err := resizeImage(
+					c.SourceDirectory,
+					img.Path,
+					img.ThumbPath,
+					c.ThumbMaxWidth,
+					c.ThumbMaxHeight,
+				); err != nil {
+					log.Printf("ERROR resize image %q: %v", img.Path, err)
+				}
+			} else {
+				doneImages <- true
 				return
 			}
 		}
@@ -235,13 +280,16 @@ func run() error {
 	if err := readSourceDirectory(
 		c.SourceDirectory,
 		c.AllowedFileExtensions,
-		filesChannel,
+		channelFiles,
 	); err != nil {
 		return errors.Wrap(err, "read posts directory")
 	}
 
-	close(filesChannel)
-	<-done
+	log.Println("DEBUG closing channelFiles")
+	close(channelFiles)
+
+	<-doneFiles
+	close(channelImages)
 
 	sort.Sort(ByCreated(pagesData))
 
@@ -251,7 +299,59 @@ func run() error {
 
 	printTagsStags(tagsCounter)
 
-	return renderTemplates(t, c, pagesData)
+	if err := renderTemplates(t, c, pagesData); err != nil {
+		return errors.Wrap(err, "rendering templates")
+	}
+
+	<-doneImages
+	return nil
+}
+
+func getImageFromURL(url string) (goimage.Image, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, errors.Wrap(err, "get image from url")
+	}
+	defer resp.Body.Close()
+
+	img, _, err := goimage.Decode(resp.Body)
+	return img, err
+}
+
+func resizeImage(srcDir, path, thumbPath string, maxWidth, maxHeight int) error {
+	var (
+		img goimage.Image
+		err error
+	)
+
+	// read image
+	if isValidURL(path) {
+		img, err = getImageFromURL(path)
+		if err != nil {
+			return errors.Wrapf(err, "get image from url %q", path)
+		}
+	} else {
+		img, err = imaging.Open(srcDir+"/"+path, imaging.AutoOrientation(true))
+		if err != nil {
+			return errors.Wrapf(err, "read image %q", path)
+		}
+	}
+
+	// resize image
+	img = imaging.Fit(img, maxWidth, maxHeight, imaging.Lanczos)
+
+	// get directory path from thumbPath
+	dirPath := filepath.Dir(thumbPath)
+	if err := createDirectory(dirPath); err != nil {
+		return errors.Wrapf(err, "create directory %q", dirPath)
+	}
+
+	// save image
+	if err := imaging.Save(img, thumbPath); err != nil {
+		return errors.Wrapf(err, "save image %q", thumbPath)
+	}
+
+	return nil
 }
 
 func renderPages(pagesData []*pageData, c config, defaultTmpl *template.Template) error {
@@ -406,9 +506,10 @@ func inArray(s []string, needle string) bool {
 // process parses markdown file and returns pageData
 func process(b []byte, c config, source string) (*pageData, error) {
 	path := strings.Replace(source, ".md", ".html", 1)
+	baseDir := filepath.Dir(path)
 	metadataBytes, bodyBytes := getMetadataAndBody(b)
 
-	m, bodyBytes, err := buildMetadata(metadataBytes, bodyBytes)
+	m, bodyBytes, err := buildMetadata(metadataBytes, bodyBytes, baseDir, c.ThumbPath)
 	if err != nil {
 		return nil, errors.Wrapf(err, "build metadata %s", source)
 	}
@@ -460,7 +561,12 @@ func getMetadataAndBody(b []byte) ([]byte, []byte) {
 	return []byte{}, b
 }
 
-func buildMetadata(metadataBytes []byte, bodyBytes []byte) (*metadata, []byte, error) {
+func buildMetadata(
+	metadataBytes []byte,
+	bodyBytes []byte,
+	relativePath string,
+	thumbPath string,
+) (*metadata, []byte, error) {
 	m := metadata{
 		Tags: tags([]string{}), // setting default value, so that there is no need to check for nil in templates
 	}
@@ -471,10 +577,51 @@ func buildMetadata(metadataBytes []byte, bodyBytes []byte) (*metadata, []byte, e
 		}
 	}
 
-	return grabMetadata(m, bodyBytes)
+	return grabMetadata(m, bodyBytes, relativePath, thumbPath)
 }
 
-func grabMetadata(m metadata, b []byte) (*metadata, []byte, error) {
+var (
+	imageMarkdown  = regexp.MustCompile(`!\[(.*?)\]\(([^\s)]*)\s*"?([^"]*?)?"?\)`)
+	imageHTML      = regexp.MustCompile(`<img(.*?)>`)
+	htmlAttributes = regexp.MustCompile(`(\S+)\s*=\s*\"?(.*?)\"`)
+)
+
+func isValidURL(toTest string) bool {
+	_, err := url.ParseRequestURI(toTest)
+	if err != nil {
+		return false
+	}
+
+	u, err := url.Parse(toTest)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return false
+	}
+
+	return true
+}
+
+func fixPath(path, relativePath, thumbPath string) (string, string) {
+	if !isValidURL(path) {
+		return relativePath + "/" + path,
+			thumbPath + "/" + path
+	}
+	// sha1 hash of the url
+	h := sha1.New()
+	h.Write([]byte(path))
+	hash := hex.EncodeToString(h.Sum(nil))
+
+	// get path file extension
+	ext := filepath.Ext(path)
+
+	return path, thumbPath + "/" + hash + "." + ext
+}
+
+func grabMetadata(
+	m metadata,
+	b []byte,
+	relativePath string,
+	thumbPath string,
+) (*metadata, []byte, error) {
 	b = bytes.TrimSpace(b)
 
 	buf := bytes.Buffer{}
@@ -505,6 +652,41 @@ func grabMetadata(m metadata, b []byte) (*metadata, []byte, error) {
 			}
 			hasTags = true
 			continue // so that we don't leave tags in the body
+		}
+
+		// parse markdown images
+		if matches := imageMarkdown.FindAllStringSubmatch(scanner.Text(), -1); matches != nil {
+			for _, match := range matches {
+				path, thumbPath := fixPath(match[2], relativePath, thumbPath)
+				m.Images = append(m.Images, image{
+					Path:      path,
+					Alt:       match[1],
+					Title:     match[3],
+					ThumbPath: thumbPath,
+				})
+			}
+		}
+
+		// parse HTML images
+		if matches := imageHTML.FindAllStringSubmatch(scanner.Text(), -1); matches != nil {
+			for _, match := range matches {
+				img := image{}
+				attributes := htmlAttributes.FindAllStringSubmatch(match[1], -1)
+				for _, attr := range attributes {
+					switch attr[1] {
+					case "src":
+						path, thumbPath := fixPath(attr[2], relativePath, thumbPath)
+						img.Path = path
+						img.ThumbPath = thumbPath
+					case "alt":
+						img.Alt = attr[2]
+					case "title":
+						img.Title = attr[2]
+					}
+				}
+
+				m.Images = append(m.Images, img)
+			}
 		}
 
 		buf.Write(scanned)

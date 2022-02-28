@@ -188,3 +188,109 @@ func TestProcessTags(t *testing.T) {
 		require.Equal(t, test.tags, pageData.Metadata.Tags, test.description)
 	}
 }
+
+func TestFixPath(t *testing.T) {
+	tests := []struct {
+		path     string
+		prefix   string
+		expected string
+	}{
+		{
+			"Path",
+			"2022",
+			"2022/Path",
+		},
+		{
+			"https://example.com/path",
+			"2022",
+			"https://example.com/path",
+		},
+	}
+
+	for _, test := range tests {
+		require.Equal(t, test.expected, fixPath(test.path, test.prefix))
+	}
+}
+
+func TestProcessImages(t *testing.T) {
+	tests := []struct {
+		description string
+		b           []byte
+		c           config
+		images      []image
+	}{
+		{
+			description: "Post with images in Markdown (relative path)",
+			b:           []byte("---\ndate: 2006-01-02\n---![Alt](Path)\n"),
+			c:           config{},
+			images: []image{
+				{
+					Path: "2022/Path",
+					Alt:  "Alt",
+				},
+			},
+		},
+		{
+			description: "Post with images in Markdown with title",
+			b:           []byte("---\ndate: 2006-01-02\n---![Alt](Path \"Title\")\n"),
+			c:           config{},
+			images: []image{
+				{
+					Path:  "2022/Path",
+					Alt:   "Alt",
+					Title: "Title",
+				},
+			},
+		},
+		{
+			description: "Post with images in Markdown (absolute URL)",
+			b:           []byte("---\ndate: 2006-01-02\n---![Alt](https://path.com)\n"),
+			c:           config{},
+			images: []image{
+				{
+					Path: "https://path.com",
+					Alt:  "Alt",
+				},
+			},
+		},
+		{
+			description: "Post with many images in one line in Markdown",
+			b:           []byte("---\ndate: 2006-01-02\n---![Alt1](Path1) ![Alt2](Path2)\n"),
+			c:           config{},
+			images: []image{
+				{
+					Path: "2022/Path1",
+					Alt:  "Alt1",
+				},
+				{
+					Path: "2022/Path2",
+					Alt:  "Alt2",
+				},
+			},
+		},
+		{
+			description: "Post without images",
+			b:           []byte("---\ndate: 2006-01-02\n---\n"),
+			c:           config{},
+			images:      nil,
+		},
+		{
+			description: "Post with HTML images",
+			b:           []byte("---\ndate: 2006-01-02\n---<img src=\"Path\" alt=\"Alt\">\n"),
+			c:           config{},
+			images: []image{
+				{
+					Path: "2022/Path",
+					Alt:  "Alt",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		pageData, err := process(test.b, test.c, "2022/post.md")
+
+		require.NoError(t, err, test.description)
+		require.Equal(t, test.images, pageData.Metadata.Images, test.description)
+	}
+}
