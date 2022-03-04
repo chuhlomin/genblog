@@ -191,24 +191,29 @@ func TestProcessTags(t *testing.T) {
 
 func TestFixPath(t *testing.T) {
 	tests := []struct {
-		path     string
-		prefix   string
-		expected string
+		path              string
+		prefix            string
+		expectedPath      string
+		expectedThumbPath string
 	}{
 		{
 			"Path",
 			"2022",
 			"2022/Path",
+			"thumb/2022/Path",
 		},
 		{
-			"https://example.com/path",
+			"https://example.com/path.png",
 			"2022",
-			"https://example.com/path",
+			"https://example.com/path.png",
+			"thumb/2022/d8b3c394439d1ab84724f824fdad0c876d41395c.png",
 		},
 	}
 
 	for _, test := range tests {
-		require.Equal(t, test.expected, fixPath(test.path, test.prefix))
+		path, thumbPath := fixPath(test.path, test.prefix, "thumb/2022")
+		require.Equal(t, test.expectedPath, path)
+		require.Equal(t, test.expectedThumbPath, thumbPath)
 	}
 }
 
@@ -220,51 +225,64 @@ func TestProcessImages(t *testing.T) {
 		images      []image
 	}{
 		{
-			description: "Post with images in Markdown (relative path)",
-			b:           []byte("---\ndate: 2006-01-02\n---![Alt](Path)\n"),
-			c:           config{},
+			description: "Post with image in Markdown (relative path)",
+			b:           []byte("---\ndate: 2006-01-02\n---\n![Alt](Path)\n"),
+			c: config{
+				ThumbPath: "thumb",
+			},
 			images: []image{
 				{
-					Path: "2022/Path",
-					Alt:  "Alt",
+					Path:      "2022/Path",
+					Alt:       "Alt",
+					ThumbPath: "thumb/2022/Path",
 				},
 			},
 		},
 		{
-			description: "Post with images in Markdown with title",
-			b:           []byte("---\ndate: 2006-01-02\n---![Alt](Path \"Title\")\n"),
-			c:           config{},
+			description: "Post with image in Markdown with title",
+			b:           []byte("---\ndate: 2006-01-02\n---\n![Alt](Path \"Title\")\n"),
+			c: config{
+				ThumbPath: "thumb",
+			},
 			images: []image{
 				{
-					Path:  "2022/Path",
-					Alt:   "Alt",
-					Title: "Title",
+					Path:      "2022/Path",
+					Alt:       "Alt",
+					Title:     "Title",
+					ThumbPath: "thumb/2022/Path",
 				},
 			},
 		},
 		{
-			description: "Post with images in Markdown (absolute URL)",
-			b:           []byte("---\ndate: 2006-01-02\n---![Alt](https://path.com)\n"),
-			c:           config{},
+			description: "Post with image in Markdown (absolute URL)",
+			b:           []byte("---\ndate: 2006-01-02\n---\n![Alt](https://path.com)\n"),
+			c: config{
+				ThumbPath: "thumb",
+			},
 			images: []image{
 				{
-					Path: "https://path.com",
-					Alt:  "Alt",
+					Path:      "https://path.com",
+					Alt:       "Alt",
+					ThumbPath: "thumb/2022/2e5679ee01b14fa7ce7d92a2d349fab44e72d260.com",
 				},
 			},
 		},
 		{
 			description: "Post with many images in one line in Markdown",
-			b:           []byte("---\ndate: 2006-01-02\n---![Alt1](Path1) ![Alt2](Path2)\n"),
-			c:           config{},
+			b:           []byte("---\ndate: 2006-01-02\n---\n![Alt1](Path1) ![Alt2](Path2)\n"),
+			c: config{
+				ThumbPath: "thumb",
+			},
 			images: []image{
 				{
-					Path: "2022/Path1",
-					Alt:  "Alt1",
+					Path:      "2022/Path1",
+					Alt:       "Alt1",
+					ThumbPath: "thumb/2022/Path1",
 				},
 				{
-					Path: "2022/Path2",
-					Alt:  "Alt2",
+					Path:      "2022/Path2",
+					Alt:       "Alt2",
+					ThumbPath: "thumb/2022/Path2",
 				},
 			},
 		},
@@ -275,13 +293,43 @@ func TestProcessImages(t *testing.T) {
 			images:      nil,
 		},
 		{
-			description: "Post with HTML images",
-			b:           []byte("---\ndate: 2006-01-02\n---<img src=\"Path\" alt=\"Alt\">\n"),
-			c:           config{},
+			description: "Post with HTML image",
+			b:           []byte("---\ndate: 2006-01-02\n---\n<img src=\"Path\" alt=\"Alt\">\n"),
+			c: config{
+				ThumbPath: "thumb",
+			},
 			images: []image{
 				{
-					Path: "2022/Path",
-					Alt:  "Alt",
+					Path:      "2022/Path",
+					Alt:       "Alt",
+					ThumbPath: "thumb/2022/Path",
+				},
+			},
+		},
+		{
+			description: "Post with external image",
+			b:           []byte("---\ndate: 2006-01-02\n---\n<img src=\"https://example.com/path.png\" alt=\"Alt\">\n"),
+			c: config{
+				ThumbPath: "thumb",
+			},
+			images: []image{
+				{
+					Path:      "https://example.com/path.png",
+					Alt:       "Alt",
+					ThumbPath: "thumb/2022/d8b3c394439d1ab84724f824fdad0c876d41395c.png",
+				},
+			},
+		},
+		{
+			description: "Post with image in metadata",
+			b:           []byte("---\ndate: 2006-01-02\nimage: Path\n---\nSome Text\n"),
+			c: config{
+				ThumbPath: "thumb",
+			},
+			images: []image{
+				{
+					Path:      "2022/Path",
+					ThumbPath: "thumb/2022/Path",
 				},
 			},
 		},

@@ -99,7 +99,8 @@ type metadata struct {
 	TypographyEnabled        *bool   `yaml:"typography_enabled"`          // typography_enabled overrides config.TypographyEnabled
 	CommentsEnabled          *bool   `yaml:"comments_enabled"`            // comments_enabled overrides config.CommentsEnabled
 	ShowSocialSharingButtons *bool   `yaml:"show_social_sharing_buttons"` // show_social_sharing_buttons is used to show social sharing buttons, overrides config.ShowSocialSharingButtons
-	Images                   []image `yaml:"images"`                      // images in the post
+	Image                    string  `yaml:"image"`                       // image associated with the post; it's used to generate the thumbnailPath
+	Images                   []image // images in the post
 }
 
 type pageData struct {
@@ -258,17 +259,22 @@ func run() error {
 	}()
 
 	go func() {
+		processedImages := make(map[string]bool)
+
 		for {
 			img, more := <-channelImages
 			if more {
-				if err := resizeImage(
-					c.SourceDirectory,
-					img.Path,
-					img.ThumbPath,
-					c.ThumbMaxWidth,
-					c.ThumbMaxHeight,
-				); err != nil {
-					log.Printf("ERROR resize image %q: %v", img.Path, err)
+				if _, ok := processedImages[img.Path]; !ok {
+					if err := resizeImage(
+						c.SourceDirectory,
+						img.Path,
+						c.OutputDirectory+"/"+img.ThumbPath,
+						c.ThumbMaxWidth,
+						c.ThumbMaxHeight,
+					); err != nil {
+						log.Printf("ERROR resize image %q: %v", img.Path, err)
+					}
+					processedImages[img.Path] = true
 				}
 			} else {
 				doneImages <- true
@@ -460,11 +466,15 @@ func copyFile(src, dst string) error {
 	return out.Sync()
 }
 
-func createDirectory(name string) error {
-	if _, err := os.Stat(name); os.IsNotExist(err) {
-		return os.Mkdir(name, permDir)
+// createDirectory creates directory recurcively
+func createDirectory(path string) error {
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			if err := os.MkdirAll(path, permDir); err != nil {
+				return errors.Wrapf(err, "create directory %q", path)
+			}
+		}
 	}
-
 	return nil
 }
 
@@ -509,7 +519,12 @@ func process(b []byte, c config, source string) (*pageData, error) {
 	baseDir := filepath.Dir(path)
 	metadataBytes, bodyBytes := getMetadataAndBody(b)
 
-	m, bodyBytes, err := buildMetadata(metadataBytes, bodyBytes, baseDir, c.ThumbPath)
+	m, bodyBytes, err := buildMetadata(
+		metadataBytes,
+		bodyBytes,
+		baseDir,
+		c.ThumbPath+"/"+baseDir,
+	)
 	if err != nil {
 		return nil, errors.Wrapf(err, "build metadata %s", source)
 	}
@@ -575,6 +590,14 @@ func buildMetadata(
 		if err != nil {
 			return nil, bodyBytes, errors.Wrapf(err, "reading metadata")
 		}
+
+		if m.Image != "" {
+			path, thumbPath := fixPath(m.Image, relativePath, thumbPath)
+			m.Images = append(m.Images, image{
+				Path:      path,
+				ThumbPath: thumbPath,
+			})
+		}
 	}
 
 	return grabMetadata(m, bodyBytes, relativePath, thumbPath)
@@ -613,7 +636,7 @@ func fixPath(path, relativePath, thumbPath string) (string, string) {
 	// get path file extension
 	ext := filepath.Ext(path)
 
-	return path, thumbPath + "/" + hash + "." + ext
+	return path, thumbPath + "/" + hash + ext
 }
 
 func grabMetadata(
@@ -657,11 +680,13 @@ func grabMetadata(
 		// parse markdown images
 		if matches := imageMarkdown.FindAllStringSubmatch(scanner.Text(), -1); matches != nil {
 			for _, match := range matches {
-				path, thumbPath := fixPath(match[2], relativePath, thumbPath)
+				alt, url, title := match[1], match[2], match[3]
+
+				path, thumbPath := fixPath(url, relativePath, thumbPath)
 				m.Images = append(m.Images, image{
 					Path:      path,
-					Alt:       match[1],
-					Title:     match[3],
+					Alt:       alt,
+					Title:     title,
 					ThumbPath: thumbPath,
 				})
 			}
