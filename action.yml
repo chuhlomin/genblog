@@ -58,4 +58,4 @@ outputs:
 
 runs:
   using: docker
-  image: 'docker://chuhlomin/genblog:latest'
+  image: 'docker://chuhlomin/genblog:v0.3'
