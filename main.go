@@ -117,6 +117,7 @@ type page struct {
 	AllLanguageVariations []*pageData // used only for index.html
 	DefaultLanguage       string
 	CommentsSiteID        string
+	Timestamp             int64
 }
 
 type ByCreated []*pageData
@@ -165,7 +166,11 @@ func main() {
 	log.Printf("Finished in %dms", time.Now().Sub(t).Milliseconds())
 }
 
+var ts int64
+
 func run() error {
+	ts = time.Now().Unix()
+
 	var c config
 	err := env.Parse(&c)
 	if err != nil {
@@ -291,7 +296,6 @@ func run() error {
 		return errors.Wrap(err, "read posts directory")
 	}
 
-	log.Println("DEBUG closing channelFiles")
 	close(channelFiles)
 
 	<-doneFiles
@@ -377,6 +381,7 @@ func renderPages(pagesData []*pageData, c config, defaultTmpl *template.Template
 				AllPages:        pagesData,
 				DefaultLanguage: c.DefaultLanguage,
 				CommentsSiteID:  c.CommentsSiteID,
+				Timestamp:       ts,
 			},
 			tmpl,
 		); err != nil {
@@ -429,6 +434,7 @@ func renderTemplates(t *template.Template, c config, pagesData []*pageData) erro
 					CurrentPage:           p,
 					AllPages:              pagesData,
 					AllLanguageVariations: pages,
+					Timestamp:             ts,
 				},
 				tmpl,
 			)
