@@ -38,7 +38,6 @@ const (
 
 type config struct {
 	Title                    string   `env:"INPUT_TITLE,required"`
-	BaseURL                  string   `env:"INPUT_BASE_URL,required"`
 	ShortDescription         string   `env:"INPUT_SHORT_DESCRIPTION,required"`
 	Author                   string   `env:"INPUT_AUTHOR,required"`
 	SourceDirectory          string   `env:"INPUT_SOURCE_DIRECTORY" envDefault:"."`
