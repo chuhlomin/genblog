@@ -336,7 +336,6 @@ func TestProcessImages(t *testing.T) {
 				{
 					Path:      "2022/Path",
 					ThumbPath: "thumb/2022/Path",
-					Promo:     true,
 				},
 			},
 		},
@@ -350,7 +349,6 @@ func TestProcessImages(t *testing.T) {
 				{
 					Path:      "2022/Path",
 					ThumbPath: "thumb/2022/Path",
-					Promo:     true,
 				},
 				{
 					Path:      "2022/Path",
