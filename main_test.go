@@ -192,7 +192,7 @@ func TestProcessTags(t *testing.T) {
 func TestFixPath(t *testing.T) {
 	tests := []struct {
 		path              string
-		prefix            string
+		relativePath      string
 		expectedPath      string
 		expectedThumbPath string
 	}{
@@ -203,6 +203,12 @@ func TestFixPath(t *testing.T) {
 			"thumb/2022/Path",
 		},
 		{
+			"../2022/image.png",
+			"2022",
+			"2022/image.png",
+			"thumb/2022/image.png",
+		},
+		{
 			"https://example.com/path.png",
 			"2022",
 			"https://example.com/path.png",
@@ -211,7 +217,7 @@ func TestFixPath(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		path, thumbPath := fixPath(test.path, test.prefix, "thumb/2022")
+		path, thumbPath := fixPath(test.path, test.relativePath, "thumb/2022")
 		require.Equal(t, test.expectedPath, path)
 		require.Equal(t, test.expectedThumbPath, thumbPath)
 	}
@@ -329,6 +335,26 @@ func TestProcessImages(t *testing.T) {
 			images: []image{
 				{
 					Path:      "2022/Path",
+					ThumbPath: "thumb/2022/Path",
+					Promo:     true,
+				},
+			},
+		},
+		{
+			description: "Post with image in metadata AND body",
+			b:           []byte("---\ndate: 2006-01-02\nimage: Path\n---\n![Alt](Path)\n"),
+			c: config{
+				ThumbPath: "thumb",
+			},
+			images: []image{
+				{
+					Path:      "2022/Path",
+					ThumbPath: "thumb/2022/Path",
+					Promo:     true,
+				},
+				{
+					Path:      "2022/Path",
+					Alt:       "Alt",
 					ThumbPath: "thumb/2022/Path",
 				},
 			},

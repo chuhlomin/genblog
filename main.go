@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -37,6 +38,7 @@ const (
 
 type config struct {
 	Title                    string   `env:"INPUT_TITLE,required"`
+	BaseURL                  string   `env:"INPUT_BASE_URL,required"`
 	ShortDescription         string   `env:"INPUT_SHORT_DESCRIPTION,required"`
 	Author                   string   `env:"INPUT_AUTHOR,required"`
 	SourceDirectory          string   `env:"INPUT_SOURCE_DIRECTORY" envDefault:"."`
@@ -73,6 +75,7 @@ type image struct {
 	Alt       string `yaml:"alt"`
 	Title     string `yaml:"title"`
 	ThumbPath string `yaml:"thumb_path"`
+	Promo     bool   `yaml:"promo"`
 }
 
 // metadata is a struct that contains metadata for a post
@@ -629,20 +632,20 @@ func isValidURL(toTest string) bool {
 	return true
 }
 
-func fixPath(path, relativePath, thumbPath string) (string, string) {
-	if !isValidURL(path) {
-		return relativePath + "/" + path,
-			thumbPath + "/" + path
+func fixPath(url, relativePath, thumbPath string) (string, string) {
+	if !isValidURL(url) {
+		return path.Clean(relativePath + "/" + url),
+			path.Clean(thumbPath + "/" + url)
 	}
 	// sha1 hash of the url
 	h := sha1.New()
-	h.Write([]byte(path))
+	h.Write([]byte(url))
 	hash := hex.EncodeToString(h.Sum(nil))
 
 	// get path file extension
-	ext := filepath.Ext(path)
+	ext := filepath.Ext(url)
 
-	return path, thumbPath + "/" + hash + ext
+	return url, thumbPath + "/" + hash + ext
 }
 
 func grabMetadata(
