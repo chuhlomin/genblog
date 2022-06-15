@@ -1,5 +1,5 @@
 name: GenBlog
-description: Generate a static blog from markdown files
+description: Generate a static blog from Markdown files
 
 author: Konstantin Chukhlomin <mail@chuhlomin.com>
 
@@ -18,43 +18,57 @@ inputs:
     description: Author of the blog
     required: true
   source_directory:
-    description: Path to directory with Markdown files, default "."
+    description: Path to directory with Markdown filenames
     required: false
+    default: "."
   output_directory:
-    description: Path to output directory, default "output"
+    description: Path to output directory
     required: false
+    default: "output"
   templates_directory:
-    description: Path to templates directory, default "templates"
+    description: Path to templates directory
     required: false
+    default: "templates"
+  template_post:
+    description: Name of the template for posts
+    required: false
+    default: "post.html"
   templates:
     description: >
       Comma-separated templates filenames that will be processed
-      in addition to posts, default "index.html,404.html"
+      in addition to posts
     required: false
+    default: "index.html,404.html"
   allowed_file_extensions:
     description: >
       Comma-separated templates extensions that will be copied as is
-      to output directory, default ".jpeg,.jpg,.png,.mp4,.pdf"
+      to output directory
     required: false
-  typography_enabled:
-    description: Enable typography, default "false"
-    required: false
+    default: ".jpeg,.jpg,.png,.mp4,.pdf"
   comments_enabled:
-    description: Enable typography, default "false"
+    description: Enable typography
     required: false
+    default: "false"
   comments_site_id:
-    description: Site ID for Remark42 comments, default ""
+    description: Site ID for Remark42 comments
     required: false
-  show_social_sharing_buttons:
-    description: Enable social sharing buttons, default "false"
-    required: false
+    default: ""
   show_drafts:
-    description: Show drafts, default "false"
+    description: Show drafts
     required: false
-
-outputs:
-  result:
-    description: Rendered file content
+    default: "false"
+  thumb_path:
+    description: Path to thumbnails directory
+    required: false
+    default: "thumb"
+  thumb_max_width:
+    description: Max width of thumbnails
+    required: false
+    default: "140"
+  thumb_max_height:
+    description: Max height of thumbnails
+    required: false
+    default: "140"
 
 runs:
   using: docker

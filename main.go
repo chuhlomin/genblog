@@ -37,23 +37,22 @@ const (
 )
 
 type config struct {
-	Title                    string   `env:"INPUT_TITLE,required"`
-	ShortDescription         string   `env:"INPUT_SHORT_DESCRIPTION,required"`
-	Author                   string   `env:"INPUT_AUTHOR,required"`
-	SourceDirectory          string   `env:"INPUT_SOURCE_DIRECTORY" envDefault:"."`
-	OutputDirectory          string   `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"./output"`
-	TemplatesDirectory       string   `env:"INPUT_TEMPLATES_DIRECTORY" envDefault:"templates"`
-	TemplatePost             string   `env:"INPUT_TEMPLATE_POST" envDefault:"post.html"`
-	AllowedFileExtensions    []string `env:"INPUT_ALLOWED_FILE_EXTENSIONS" envDefault:".jpeg,.jpg,.png,.mp4,.pdf" envSeparator:","`
-	DefaultLanguage          string   `env:"INPUT_DEFAULT_LANGUAGE" envDefault:"en"`
-	TypographyEnabled        bool     `env:"INPUT_TYPOGRAPHY_ENABLED" envDefault:"false"`
-	CommentsEnabled          bool     `env:"INPUT_COMMENTS_ENABLED" envDefault:"true"`
-	CommentsSiteID           string   `env:"INPUT_COMMENTS_SITE_ID" envDefault:""`
-	ShowSocialSharingButtons bool     `env:"INPUT_SHOW_SOCIAL_SHARING_BUTTONS" envDefault:"false"`
-	ShowDrafts               bool     `env:"INPUT_SHOW_DRAFTS" envDefault:"false"`
-	ThumbPath                string   `env:"INPUT_THUMB_PATH" envDefault:"thumb"`
-	ThumbMaxWidth            int      `env:"INPUT_THUMB_MAX_WIDTH" envDefault:"140"`
-	ThumbMaxHeight           int      `env:"INPUT_THUMB_MAX_HEIGHT" envDefault:"140"`
+	Title                 string   `env:"INPUT_TITLE,required"`
+	ShortDescription      string   `env:"INPUT_SHORT_DESCRIPTION,required"`
+	Author                string   `env:"INPUT_AUTHOR,required"`
+	SourceDirectory       string   `env:"INPUT_SOURCE_DIRECTORY" envDefault:"."`
+	OutputDirectory       string   `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"./output"`
+	TemplatesDirectory    string   `env:"INPUT_TEMPLATES_DIRECTORY" envDefault:"templates"`
+	TemplatePost          string   `env:"INPUT_TEMPLATE_POST" envDefault:"post.html"`
+	AllowedFileExtensions []string `env:"INPUT_ALLOWED_FILE_EXTENSIONS" envDefault:".jpeg,.jpg,.png,.mp4,.pdf" envSeparator:","`
+	DefaultLanguage       string   `env:"INPUT_DEFAULT_LANGUAGE" envDefault:"en"`
+	TypographyEnabled     bool     `env:"INPUT_TYPOGRAPHY_ENABLED" envDefault:"false"`
+	CommentsEnabled       bool     `env:"INPUT_COMMENTS_ENABLED" envDefault:"true"`
+	CommentsSiteID        string   `env:"INPUT_COMMENTS_SITE_ID" envDefault:""`
+	ShowDrafts            bool     `env:"INPUT_SHOW_DRAFTS" envDefault:"false"`
+	ThumbPath             string   `env:"INPUT_THUMB_PATH" envDefault:"thumb"`
+	ThumbMaxWidth         int      `env:"INPUT_THUMB_MAX_WIDTH" envDefault:"140"`
+	ThumbMaxHeight        int      `env:"INPUT_THUMB_MAX_HEIGHT" envDefault:"140"`
 }
 
 type tags []string
@@ -87,22 +86,21 @@ type image struct {
 //    ---
 //    Page content
 type metadata struct {
-	Type                     string  `yaml:"type"`                        // page type, by default "post"
-	Title                    string  `yaml:"title"`                       // by default equals to H1 in Markdown file
-	Date                     string  `yaml:"date"`                        // date when post was published, in format "2006-01-02"
-	Tags                     tags    `yaml:"tags"`                        // post tags, by default parsed from the post
-	Language                 string  `yaml:"language"`                    // language ("en", "ru", ...), parsed from filename, overrides config.DefaultLanguage
-	Slug                     string  `yaml:"slug"`                        // slug is used for the URL, by default it's the same as the file path
-	Description              string  `yaml:"description"`                 // description is used for the meta description
-	Author                   string  `yaml:"author"`                      // author is used for the meta author, overrides config.Author
-	Keywords                 string  `yaml:"keywords"`                    // keywords is used for the meta keywords
-	Draft                    bool    `yaml:"draft"`                       // draft is used to mark post as draft
-	Template                 string  `yaml:"template"`                    // template to use in config.TemplatesDirectory, overrides default "post.html"
-	TypographyEnabled        *bool   `yaml:"typography_enabled"`          // typography_enabled overrides config.TypographyEnabled
-	CommentsEnabled          *bool   `yaml:"comments_enabled"`            // comments_enabled overrides config.CommentsEnabled
-	ShowSocialSharingButtons *bool   `yaml:"show_social_sharing_buttons"` // show_social_sharing_buttons is used to show social sharing buttons, overrides config.ShowSocialSharingButtons
-	Image                    string  `yaml:"image"`                       // image associated with the post; it's used to generate the thumbnailPath
-	Images                   []image // images in the post
+	Type              string  `yaml:"type"`               // page type, by default "post"
+	Title             string  `yaml:"title"`              // by default equals to H1 in Markdown file
+	Date              string  `yaml:"date"`               // date when post was published, in format "2006-01-02"
+	Tags              tags    `yaml:"tags"`               // post tags, by default parsed from the post
+	Language          string  `yaml:"language"`           // language ("en", "ru", ...), parsed from filename, overrides config.DefaultLanguage
+	Slug              string  `yaml:"slug"`               // slug is used for the URL, by default it's the same as the file path
+	Description       string  `yaml:"description"`        // description is used for the meta description
+	Author            string  `yaml:"author"`             // author is used for the meta author, overrides config.Author
+	Keywords          string  `yaml:"keywords"`           // keywords is used for the meta keywords
+	Draft             bool    `yaml:"draft"`              // draft is used to mark post as draft
+	Template          string  `yaml:"template"`           // template to use in config.TemplatesDirectory, overrides default "post.html"
+	TypographyEnabled *bool   `yaml:"typography_enabled"` // typography_enabled overrides config.TypographyEnabled
+	CommentsEnabled   *bool   `yaml:"comments_enabled"`   // comments_enabled overrides config.CommentsEnabled
+	Image             string  `yaml:"image"`              // image associated with the post; it's used to generate the thumbnailPath
+	Images            []image // images in the post
 }
 
 type pageData struct {
