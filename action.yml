@@ -45,6 +45,10 @@ inputs:
       to output directory
     required: false
     default: ".jpeg,.jpg,.png,.mp4,.pdf"
+  default_language:
+    description: Default language for the blog
+    required: false
+    default: "en"
   comments_enabled:
     description: Enable typography
     required: false
