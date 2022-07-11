@@ -84,4 +84,4 @@ inputs:
 
 runs:
   using: docker
-  image: 'docker://chuhlomin/genblog:v0.4'
+  image: 'docker://chuhlomin/genblog:v0.5'
