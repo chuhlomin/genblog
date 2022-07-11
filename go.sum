@@ -59,6 +59,14 @@ github.com/caarlos0/env/v6 v6.9.3 h1:Tyg69hoVXDnpO5Qvpsu8EoquarbPyQb+YwExWHP8wWU
 github.com/caarlos0/env/v6 v6.9.3/go.mod h1:hvp/ryKXKipEkcuYjs9mI4bBCg+UI0Yhgm5Zu0ddvwc=
 github.com/chuhlomin/search v0.0.1 h1:ZlXg9yBrNfuOCpuGMS6NuNKLLiobgKef02XwVWelcas=
 github.com/chuhlomin/search v0.0.1/go.mod h1:d6MeyotBXBYNJwFIS4IHEmRSQ0vQd1gitGIlhNvoWQU=
+github.com/chuhlomin/search v0.0.2-0.20220711033911-e50a47466ac3 h1:3s8DUkXe3HIUm8Y977cxKgqdNIYVJeR2gOI/BlkvzVo=
+github.com/chuhlomin/search v0.0.2-0.20220711033911-e50a47466ac3/go.mod h1:d6MeyotBXBYNJwFIS4IHEmRSQ0vQd1gitGIlhNvoWQU=
+github.com/chuhlomin/search v0.0.2-0.20220711035046-7add7a7d7703 h1:KNIFyMBz74LqjVezVATeIvsNwnrLZJ43Lfb66HaikdY=
+github.com/chuhlomin/search v0.0.2-0.20220711035046-7add7a7d7703/go.mod h1:d6MeyotBXBYNJwFIS4IHEmRSQ0vQd1gitGIlhNvoWQU=
+github.com/chuhlomin/search v0.0.2-0.20220711035733-92e8adf37393 h1:ISi5vbuJbWm+RR/v30Q74LXOZr9tN8FWBH+mIp+mVec=
+github.com/chuhlomin/search v0.0.2-0.20220711035733-92e8adf37393/go.mod h1:d6MeyotBXBYNJwFIS4IHEmRSQ0vQd1gitGIlhNvoWQU=
+github.com/chuhlomin/search v0.0.2 h1:HBdpuj7WNgPptq31y1QTfT6MzHFNW0OYo8b0kC0n2Zw=
+github.com/chuhlomin/search v0.0.2/go.mod h1:d6MeyotBXBYNJwFIS4IHEmRSQ0vQd1gitGIlhNvoWQU=
 github.com/chuhlomin/typograph v0.0.0-20211019013004-dc1e68187eea h1:PmICjLy1CLzxTPPeb87BFi/a8abF+p3jo55V5LPGA40=
 github.com/chuhlomin/typograph v0.0.0-20211019013004-dc1e68187eea/go.mod h1:c9lc1kC3NTbjhLDE5CyG2NOHBIisKz3UpUl33SblVCA=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=

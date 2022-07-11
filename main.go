@@ -798,7 +798,7 @@ func createSearchIndex(pagesData []*pageData, searchIndexPath string) error {
 
 	log.Println("Building search index...")
 
-	indexer, err := search.NewIndexer(searchIndexPath)
+	indexer, err := search.NewIndexer(searchIndexPath, searchIndexPath+"_temp")
 	if err != nil {
 		return errors.Wrap(err, "failed to create search index")
 	}
