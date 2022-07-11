@@ -24,6 +24,8 @@ Generate a static blog from Markdown files.
 | `thumb_path`              | Path to thumbnails directory                                                       | "thumb"                     | false    |
 | `thumb_max_width`         | Max width of thumbnails                                                            | "140"                       | false    |
 | `thumb_max_height`        | Max height of thumbnails                                                           | "140"                       | false    |
+| `search_enabled`          | Create `bleve` index directory                                                     | "false"                     | false    |
+| `search_path`             | Path to `bleve` index directory                                                    | "index.bleve"               | false    |
 
 Genblog scans files in the `source_directory`.
 

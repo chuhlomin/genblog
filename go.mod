@@ -4,19 +4,48 @@ go 1.17
 
 require (
 	github.com/BurntSushi/toml v0.3.1
-	github.com/caarlos0/env/v6 v6.1.0
+	github.com/caarlos0/env/v6 v6.9.3
+	github.com/chuhlomin/search v0.0.1
 	github.com/chuhlomin/typograph v0.0.0-20211019013004-dc1e68187eea
 	github.com/disintegration/imaging v1.6.2
 	github.com/gomarkdown/markdown v0.0.0-20190912180731-281270bc6d83
 	github.com/nicksnyder/go-i18n/v2 v2.1.2
-	github.com/pkg/errors v0.8.1
-	github.com/stretchr/testify v1.7.0
-	golang.org/x/text v0.3.3
+	github.com/pkg/errors v0.9.1
+	github.com/stretchr/testify v1.7.1
+	golang.org/x/text v0.3.7
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
-	github.com/davecgh/go-spew v1.1.0 // indirect
+	github.com/RoaringBitmap/roaring v1.2.1 // indirect
+	github.com/bits-and-blooms/bitset v1.2.2 // indirect
+	github.com/blevesearch/bleve/v2 v2.3.3 // indirect
+	github.com/blevesearch/bleve_index_api v1.0.2 // indirect
+	github.com/blevesearch/geo v0.1.12 // indirect
+	github.com/blevesearch/go-porterstemmer v1.0.3 // indirect
+	github.com/blevesearch/gtreap v0.1.1 // indirect
+	github.com/blevesearch/mmap-go v1.0.4 // indirect
+	github.com/blevesearch/scorch_segment_api/v2 v2.1.1 // indirect
+	github.com/blevesearch/segment v0.9.0 // indirect
+	github.com/blevesearch/snowballstem v0.9.0 // indirect
+	github.com/blevesearch/upsidedown_store_api v1.0.1 // indirect
+	github.com/blevesearch/vellum v1.0.8 // indirect
+	github.com/blevesearch/zapx/v11 v11.3.4 // indirect
+	github.com/blevesearch/zapx/v12 v12.3.4 // indirect
+	github.com/blevesearch/zapx/v13 v13.3.4 // indirect
+	github.com/blevesearch/zapx/v14 v14.3.4 // indirect
+	github.com/blevesearch/zapx/v15 v15.3.4 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/golang/geo v0.0.0-20210211234256-740aa86cb551 // indirect
+	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/golang/snappy v0.0.4 // indirect
+	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/mschoch/smat v0.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	go.etcd.io/bbolt v1.3.6 // indirect
 	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8 // indirect
+	golang.org/x/sys v0.0.0-20220708085239-5a0f0661e09d // indirect
+	google.golang.org/protobuf v1.28.0 // indirect
 )

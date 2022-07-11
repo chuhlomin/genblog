@@ -22,6 +22,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/caarlos0/env/v6"
+	"github.com/chuhlomin/search"
 	"github.com/chuhlomin/typograph"
 	"github.com/disintegration/imaging"
 	"github.com/gomarkdown/markdown"
@@ -53,6 +54,8 @@ type config struct {
 	ThumbPath             string   `env:"INPUT_THUMB_PATH" envDefault:"thumb"`
 	ThumbMaxWidth         int      `env:"INPUT_THUMB_MAX_WIDTH" envDefault:"140"`
 	ThumbMaxHeight        int      `env:"INPUT_THUMB_MAX_HEIGHT" envDefault:"140"`
+	SearchEnabled         bool     `env:"INPUT_SEARCH_ENABLED"`
+	SearchPath            string   `env:"INPUT_SEARCH_PATH" envDefault:"search_index"`
 }
 
 type tags []string
@@ -86,29 +89,46 @@ type image struct {
 //    ---
 //    Page content
 type metadata struct {
-	Type              string  `yaml:"type"`               // page type, by default "post"
-	Title             string  `yaml:"title"`              // by default equals to H1 in Markdown file
-	Date              string  `yaml:"date"`               // date when post was published, in format "2006-01-02"
-	Tags              tags    `yaml:"tags"`               // post tags, by default parsed from the post
-	Language          string  `yaml:"language"`           // language ("en", "ru", ...), parsed from filename, overrides config.DefaultLanguage
-	Slug              string  `yaml:"slug"`               // slug is used for the URL, by default it's the same as the file path
-	Description       string  `yaml:"description"`        // description is used for the meta description
-	Author            string  `yaml:"author"`             // author is used for the meta author, overrides config.Author
-	Keywords          string  `yaml:"keywords"`           // keywords is used for the meta keywords
-	Draft             bool    `yaml:"draft"`              // draft is used to mark post as draft
-	Template          string  `yaml:"template"`           // template to use in config.TemplatesDirectory, overrides default "post.html"
-	TypographyEnabled *bool   `yaml:"typography_enabled"` // typography_enabled overrides config.TypographyEnabled
-	CommentsEnabled   *bool   `yaml:"comments_enabled"`   // comments_enabled overrides config.CommentsEnabled
-	Image             string  `yaml:"image"`              // image associated with the post; it's used to generate the thumbnailPath
+	Type              string  `yaml:"type"`                       // page type, by default "post"
+	Title             string  `yaml:"title" indexer:"text"`       // by default equals to H1 in Markdown file
+	Date              string  `yaml:"date" indexer:"date"`        // date when post was published, in format "2006-01-02"
+	Tags              tags    `yaml:"tags"`                       // post tags, by default parsed from the post
+	Language          string  `yaml:"language"`                   // language ("en", "ru", ...), parsed from filename, overrides config.DefaultLanguage
+	Slug              string  `yaml:"slug"`                       // slug is used for the URL, by default it's the same as the file path
+	Description       string  `yaml:"description" indexer:"text"` // description is used for the meta description
+	Author            string  `yaml:"author"`                     // author is used for the meta author, overrides config.Author
+	Keywords          string  `yaml:"keywords"`                   // keywords is used for the meta keywords
+	Draft             bool    `yaml:"draft"`                      // draft is used to mark post as draft
+	Template          string  `yaml:"template"`                   // template to use in config.TemplatesDirectory, overrides default "post.html"
+	TypographyEnabled *bool   `yaml:"typography_enabled"`         // typography_enabled overrides config.TypographyEnabled
+	CommentsEnabled   *bool   `yaml:"comments_enabled"`           // comments_enabled overrides config.CommentsEnabled
+	Image             string  `yaml:"image"`                      // image associated with the post; it's used to generate the thumbnailPath
 	Images            []image // images in the post
 }
 
 type pageData struct {
 	Source   string // path to the source markdown file
 	Path     string // path to the generated HTML file
-	ID       string // same post in different language will have the same ID value
+	ID       string // same post in different languages will have the same ID value
 	Metadata *metadata
-	Body     string
+	Body     string `indexer:"no_store"`
+	Markdown string `indexer:"text"`
+}
+
+func (pd pageData) Type() string {
+	suffix := ""
+	lang := pd.Language()
+	if lang != "en" {
+		suffix = "_" + lang
+	}
+	return "post" + suffix
+}
+
+func (pd pageData) Language() string {
+	if pd.Metadata == nil {
+		return "en"
+	}
+	return pd.Metadata.Language
 }
 
 type page struct {
@@ -303,14 +323,22 @@ func run() error {
 
 	sort.Sort(ByCreated(pagesData))
 
+	log.Println("Rendering posts...")
 	if err = renderPages(pagesData, c, tp); err != nil {
 		return errors.Wrap(err, "rendering pages")
 	}
 
 	printTagsStags(tagsCounter)
 
+	log.Println("Rendering pages...")
 	if err := renderTemplates(t, c, pagesData); err != nil {
 		return errors.Wrap(err, "rendering templates")
+	}
+
+	if c.SearchEnabled {
+		if err := createSearchIndex(pagesData, c.SearchPath); err != nil {
+			return errors.Wrap(err, "search index creation")
+		}
 	}
 
 	<-doneImages
@@ -554,6 +582,7 @@ func process(b []byte, c config, source string) (*pageData, error) {
 		m.CommentsEnabled = &c.CommentsEnabled
 	}
 
+	markdownBody := string(bodyBytes)
 	bodyBytes = markdown.ToHTML(bodyBytes, nil, nil)
 
 	if m.TypographyEnabled == nil {
@@ -569,6 +598,7 @@ func process(b []byte, c config, source string) (*pageData, error) {
 		Source:   source,
 		Metadata: m,
 		Body:     string(bodyBytes),
+		Markdown: markdownBody,
 	}, nil
 }
 
@@ -757,4 +787,38 @@ func printTagsStags(tagsCounter TagsCounterList) {
 	for _, k := range p {
 		log.Printf("  %v: %v", k.Key, k.Value)
 	}
+}
+
+func createSearchIndex(pagesData []*pageData, searchIndexPath string) error {
+	// check if search index exists, if not create it
+	if _, err := os.Stat(searchIndexPath); !os.IsNotExist(err) {
+		log.Println("Search index alrady exists, skipping creation")
+		return nil
+	}
+
+	log.Println("Building search index...")
+
+	indexer, err := search.NewIndexer(searchIndexPath)
+	if err != nil {
+		return errors.Wrap(err, "failed to create search index")
+	}
+
+	err = indexer.RegisterType(pageData{Metadata: &metadata{Language: "en"}}, "en")
+	if err != nil {
+		return errors.Wrap(err, "failed to register pageData type")
+	}
+
+	err = indexer.RegisterType(pageData{Metadata: &metadata{Language: "ru"}}, "ru")
+	if err != nil {
+		return errors.Wrap(err, "failed to register pageData type")
+	}
+
+	for _, pageData := range pagesData {
+		err = indexer.Index(pageData.Source, pageData)
+		if err != nil {
+			return errors.Wrapf(err, "failed to index %s", pageData.Source)
+		}
+	}
+
+	return indexer.Close()
 }

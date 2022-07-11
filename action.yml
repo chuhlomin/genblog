@@ -73,6 +73,14 @@ inputs:
     description: Max height of thumbnails
     required: false
     default: "140"
+  search_enabled:
+    description: Enable search
+    required: false
+    default: "false"
+  search_path:
+    description: Path to search index file
+    required: false
+    default: "index.bleve"
 
 runs:
   using: docker
