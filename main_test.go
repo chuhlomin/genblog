@@ -35,7 +35,8 @@ func TestProcess(t *testing.T) {
 					CommentsEnabled:   boolPtr(false),
 					TypographyEnabled: boolPtr(false),
 				},
-				Body: "<p>Post body</p>\n",
+				Body:     "<p>Post body</p>\n",
+				Markdown: "Post body\n",
 			},
 		},
 		{
@@ -57,7 +58,8 @@ func TestProcess(t *testing.T) {
 					CommentsEnabled:   boolPtr(false),
 					TypographyEnabled: boolPtr(false),
 				},
-				Body: "<p>Post body</p>\n",
+				Body:     "<p>Post body</p>\n",
+				Markdown: "Post body\n",
 			},
 		},
 		{
@@ -77,7 +79,8 @@ func TestProcess(t *testing.T) {
 					CommentsEnabled:   boolPtr(false),
 					TypographyEnabled: boolPtr(false),
 				},
-				Body: "",
+				Body:     "",
+				Markdown: "",
 			},
 		},
 	}
