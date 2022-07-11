@@ -69,6 +69,8 @@ github.com/chuhlomin/search v0.0.2 h1:HBdpuj7WNgPptq31y1QTfT6MzHFNW0OYo8b0kC0n2Z
 github.com/chuhlomin/search v0.0.2/go.mod h1:d6MeyotBXBYNJwFIS4IHEmRSQ0vQd1gitGIlhNvoWQU=
 github.com/chuhlomin/search v0.0.3 h1:pTYG+XPMkm5sUqzi8EmuYTixfhMDHbgeZLOLzrHcoIs=
 github.com/chuhlomin/search v0.0.3/go.mod h1:d6MeyotBXBYNJwFIS4IHEmRSQ0vQd1gitGIlhNvoWQU=
+github.com/chuhlomin/search v0.0.4 h1:UontJ9lnq2BVFMTuBza372gZpQ9wirF4WwuRk9xLzXk=
+github.com/chuhlomin/search v0.0.4/go.mod h1:d6MeyotBXBYNJwFIS4IHEmRSQ0vQd1gitGIlhNvoWQU=
 github.com/chuhlomin/typograph v0.0.0-20211019013004-dc1e68187eea h1:PmICjLy1CLzxTPPeb87BFi/a8abF+p3jo55V5LPGA40=
 github.com/chuhlomin/typograph v0.0.0-20211019013004-dc1e68187eea/go.mod h1:c9lc1kC3NTbjhLDE5CyG2NOHBIisKz3UpUl33SblVCA=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
