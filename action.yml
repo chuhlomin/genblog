@@ -77,6 +77,9 @@ inputs:
     description: Enable search
     required: false
     default: "false"
+  search_url:
+    description: URL to search service
+    required: false
   search_path:
     description: Path to search index file
     required: false
@@ -84,4 +87,4 @@ inputs:
 
 runs:
   using: docker
-  image: 'docker://chuhlomin/genblog:v0.9'
+  image: 'docker://chuhlomin/genblog:v0.10'

@@ -24,9 +24,10 @@ func TestProcess(t *testing.T) {
 			c:           config{},
 			source:      "2006/blogpost.md",
 			pageData: pageData{
-				Source: "2006/blogpost.md",
-				Path:   "2006/blogpost.html",
-				ID:     "2006/blogpost.md",
+				Source:    "2006/blogpost.md",
+				Path:      "2006/blogpost.html",
+				Canonical: "2006/blogpost.html",
+				ID:        "2006/blogpost.md",
 				Metadata: &metadata{
 					Title:             "Blogpost",
 					Date:              "2006-01-02",
@@ -47,9 +48,10 @@ func TestProcess(t *testing.T) {
 			},
 			source: "2006/blogpost_ru.md",
 			pageData: pageData{
-				Source: "2006/blogpost_ru.md",
-				Path:   "2006/blogpost_ru.html",
-				ID:     "2006/blogpost.md",
+				Source:    "2006/blogpost_ru.md",
+				Path:      "2006/blogpost_ru.html",
+				Canonical: "2006/blogpost.html?lang=ru",
+				ID:        "2006/blogpost.md",
 				Metadata: &metadata{
 					Title:             "Blogpost",
 					Date:              "2006-01-02",
@@ -68,9 +70,10 @@ func TestProcess(t *testing.T) {
 			c:           config{},
 			source:      "2006/blogpost.md",
 			pageData: pageData{
-				Source: "2006/blogpost.md",
-				Path:   "2006/blogpost.html",
-				ID:     "2006/blogpost.md",
+				Source:    "2006/blogpost.md",
+				Path:      "2006/blogpost.html",
+				Canonical: "2006/blogpost.html",
+				ID:        "2006/blogpost.md",
 				Metadata: &metadata{
 					Title:             "",
 					Date:              "",
@@ -86,7 +89,8 @@ func TestProcess(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		pageData, err := process(test.b, test.c, test.source)
+		cfg = test.c
+		pageData, err := process(test.b, test.source)
 
 		require.NoError(t, err, test.description)
 		require.Equal(t, test.pageData, *pageData, test.description)
@@ -133,7 +137,8 @@ func TestProcessCommentsEnabled(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		pageData, err := process(test.b, test.c, "")
+		cfg = test.c
+		pageData, err := process(test.b, "")
 
 		require.NoError(t, err, test.description)
 		require.Equal(
@@ -185,7 +190,8 @@ func TestProcessTags(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		pageData, err := process(test.b, test.c, "")
+		cfg = test.c
+		pageData, err := process(test.b, "")
 
 		require.NoError(t, err, test.description)
 		require.Equal(t, test.tags, pageData.Metadata.Tags, test.description)
@@ -363,7 +369,8 @@ func TestProcessImages(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		pageData, err := process(test.b, test.c, "2022/post.md")
+		cfg = test.c
+		pageData, err := process(test.b, "2022/post.md")
 
 		require.NoError(t, err, test.description)
 		require.Equal(t, test.images, pageData.Metadata.Images, test.description)

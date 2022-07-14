@@ -29,6 +29,7 @@ var fm = template.FuncMap{
 	"filepathBase":          filepathBase,          // returns the last path element
 	"i18n":                  i18n,                  // translate string
 	"stripTags":             stripTags,             // remove html tags
+	"config":                getConfigValue,        // get config value
 }
 
 var langSuffix = regexp.MustCompile(`_([a-z]{2}).(html|md)$`)
@@ -229,4 +230,8 @@ func i18n(id string, lang string) string {
 func stripTags(html string) string {
 	htmlTagRegexp := regexp.MustCompile("<[^>]*>")
 	return htmlTagRegexp.ReplaceAllString(string(html), "")
+}
+
+func getConfigValue(key string) string {
+	return cfg.GetString(key)
 }

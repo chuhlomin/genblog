@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -55,8 +56,22 @@ type config struct {
 	ThumbMaxWidth         int      `env:"INPUT_THUMB_MAX_WIDTH" envDefault:"140"`
 	ThumbMaxHeight        int      `env:"INPUT_THUMB_MAX_HEIGHT" envDefault:"140"`
 	SearchEnabled         bool     `env:"INPUT_SEARCH_ENABLED"`
+	SearchURL             string   `env:"INPUT_SEARCH_URL"`
 	SearchPath            string   `env:"INPUT_SEARCH_PATH" envDefault:"search_index"`
 }
+
+func (c config) GetString(key string) string {
+	// use reflect to get the value of the key
+	v := reflect.ValueOf(c)
+	for i := 0; i < v.NumField(); i++ {
+		if v.Type().Field(i).Name == key {
+			return v.Field(i).String()
+		}
+	}
+	return ""
+}
+
+var cfg config
 
 type tags []string
 
@@ -107,12 +122,13 @@ type metadata struct {
 }
 
 type pageData struct {
-	Source   string // path to the source markdown file
-	Path     string // path to the generated HTML file
-	ID       string // same post in different languages will have the same ID value
-	Metadata *metadata
-	Body     string `indexer:"no_store"`
-	Markdown string `indexer:"text"`
+	Source    string // path to the source markdown file
+	Path      string // path to the generated HTML file
+	Canonical string // canonical URL
+	ID        string // same post in different languages will have the same ID value
+	Metadata  *metadata
+	Body      string `indexer:"no_store"`
+	Markdown  string `indexer:"text"`
 }
 
 func (pd pageData) Type() string {
@@ -191,34 +207,33 @@ var ts int64
 func run() error {
 	ts = time.Now().Unix()
 
-	var c config
-	err := env.Parse(&c)
+	err := env.Parse(&cfg)
 	if err != nil {
 		return errors.Wrap(err, "environment variables parsing")
 	}
-	if c.DefaultLanguage == "" {
-		c.DefaultLanguage = "en"
+	if cfg.DefaultLanguage == "" {
+		cfg.DefaultLanguage = "en"
 	}
 
-	lang, err := language.Parse(c.DefaultLanguage)
+	lang, err := language.Parse(cfg.DefaultLanguage)
 	if err != nil {
-		return errors.Wrapf(err, "parse language %q", c.DefaultLanguage)
+		return errors.Wrapf(err, "parse language %q", cfg.DefaultLanguage)
 	}
 	bundle = i.NewBundle(lang) // used in templates/i18n to get translated strings
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
 
-	if err = createDirectory(c.OutputDirectory); err != nil {
-		return errors.Wrapf(err, "output directory creation %q", c.OutputDirectory)
+	if err = createDirectory(cfg.OutputDirectory); err != nil {
+		return errors.Wrapf(err, "output directory creation %q", cfg.OutputDirectory)
 	}
 
-	t, err := template.New("").Funcs(fm).ParseGlob(c.TemplatesDirectory + "/*")
+	t, err := template.New("").Funcs(fm).ParseGlob(cfg.TemplatesDirectory + "/*")
 	if err != nil {
 		return errors.Wrap(err, "templates parsing")
 	}
 
-	tp := t.Lookup(c.TemplatePost)
+	tp := t.Lookup(cfg.TemplatePost)
 	if tp == nil {
-		return errors.Errorf("template %q not found", c.TemplatePost)
+		return errors.Errorf("template %q not found", cfg.TemplatePost)
 	}
 
 	// scan source directory
@@ -236,15 +251,15 @@ func run() error {
 			if more {
 				switch filepath.Ext(path) {
 				case ".md":
-					b, err := ioutil.ReadFile(c.SourceDirectory + "/" + path)
+					b, err := ioutil.ReadFile(cfg.SourceDirectory + "/" + path)
 					if err != nil {
-						log.Printf("ERROR read file %q: %v", c.SourceDirectory+"/"+path, err)
+						log.Printf("ERROR read file %q: %v", cfg.SourceDirectory+"/"+path, err)
 						continue
 					}
 
-					p, err := process(b, c, path)
+					p, err := process(b, path)
 					if p == nil {
-						log.Printf("ERROR failed to process file: %q", c.SourceDirectory+"/"+path)
+						log.Printf("ERROR failed to process file: %q", cfg.SourceDirectory+"/"+path)
 						continue
 					}
 
@@ -252,7 +267,7 @@ func run() error {
 						channelImages <- image
 					}
 
-					if p.Metadata.Language == c.DefaultLanguage {
+					if p.Metadata.Language == cfg.DefaultLanguage {
 						tagsCounter.Add(p.Metadata.Tags)
 					}
 
@@ -266,14 +281,14 @@ func run() error {
 					}
 					pagesData = append(pagesData, p)
 				case ".toml":
-					_, err := bundle.LoadMessageFile(c.SourceDirectory + "/" + path)
+					_, err := bundle.LoadMessageFile(cfg.SourceDirectory + "/" + path)
 					if err != nil {
-						log.Printf("ERROR load message file %q: %v", c.SourceDirectory+"/"+path, err)
+						log.Printf("ERROR load message file %q: %v", cfg.SourceDirectory+"/"+path, err)
 					}
 				default:
 					copyFile(
-						c.SourceDirectory+"/"+path,
-						c.OutputDirectory+"/"+path,
+						cfg.SourceDirectory+"/"+path,
+						cfg.OutputDirectory+"/"+path,
 					)
 				}
 			} else {
@@ -291,11 +306,11 @@ func run() error {
 			if more {
 				if _, ok := processedImages[img.Path]; !ok {
 					if err := resizeImage(
-						c.SourceDirectory,
+						cfg.SourceDirectory,
 						img.Path,
-						c.OutputDirectory+"/"+img.ThumbPath,
-						c.ThumbMaxWidth,
-						c.ThumbMaxHeight,
+						cfg.OutputDirectory+"/"+img.ThumbPath,
+						cfg.ThumbMaxWidth,
+						cfg.ThumbMaxHeight,
 					); err != nil {
 						log.Printf("ERROR resize image %q: %v", img.Path, err)
 					}
@@ -309,8 +324,8 @@ func run() error {
 	}()
 
 	if err := readSourceDirectory(
-		c.SourceDirectory,
-		c.AllowedFileExtensions,
+		cfg.SourceDirectory,
+		cfg.AllowedFileExtensions,
 		channelFiles,
 	); err != nil {
 		return errors.Wrap(err, "read posts directory")
@@ -324,19 +339,19 @@ func run() error {
 	sort.Sort(ByCreated(pagesData))
 
 	log.Println("Rendering posts...")
-	if err = renderPages(pagesData, c, tp); err != nil {
+	if err = renderPages(pagesData, tp); err != nil {
 		return errors.Wrap(err, "rendering pages")
 	}
 
 	printTagsStags(tagsCounter)
 
 	log.Println("Rendering pages...")
-	if err := renderTemplates(t, c, pagesData); err != nil {
+	if err := renderTemplates(t, pagesData); err != nil {
 		return errors.Wrap(err, "rendering templates")
 	}
 
-	if c.SearchEnabled {
-		if err := createSearchIndex(pagesData, c.SearchPath); err != nil {
+	if cfg.SearchEnabled {
+		if err := createSearchIndex(pagesData, cfg.SearchPath); err != nil {
 			return errors.Wrap(err, "search index creation")
 		}
 	}
@@ -392,7 +407,7 @@ func resizeImage(srcDir, path, thumbPath string, maxWidth, maxHeight int) error 
 	return nil
 }
 
-func renderPages(pagesData []*pageData, c config, defaultTmpl *template.Template) error {
+func renderPages(pagesData []*pageData, defaultTmpl *template.Template) error {
 	for _, p := range pagesData {
 		tmpl := defaultTmpl
 		if p.Metadata.Template != "" {
@@ -403,12 +418,12 @@ func renderPages(pagesData []*pageData, c config, defaultTmpl *template.Template
 		}
 
 		if err := renderTemplate(
-			c.OutputDirectory+"/"+p.Path,
+			cfg.OutputDirectory+"/"+p.Path,
 			page{
 				CurrentPage:     p,
 				AllPages:        pagesData,
-				DefaultLanguage: c.DefaultLanguage,
-				CommentsSiteID:  c.CommentsSiteID,
+				DefaultLanguage: cfg.DefaultLanguage,
+				CommentsSiteID:  cfg.CommentsSiteID,
 				Timestamp:       ts,
 			},
 			tmpl,
@@ -419,7 +434,7 @@ func renderPages(pagesData []*pageData, c config, defaultTmpl *template.Template
 	return nil
 }
 
-func renderTemplates(t *template.Template, c config, pagesData []*pageData) error {
+func renderTemplates(t *template.Template, pagesData []*pageData) error {
 	pagesIDMap := make(map[string][]*pageData)
 
 	// group pages by IP
@@ -427,13 +442,13 @@ func renderTemplates(t *template.Template, c config, pagesData []*pageData) erro
 		// if template starts with underscore
 		// or if template name is empty (root)
 		// or it is a "post" template – skip it
-		if strings.HasPrefix(tpl.Name(), "_") || tpl.Name() == "" || tpl.Name() == c.TemplatePost {
+		if strings.HasPrefix(tpl.Name(), "_") || tpl.Name() == "" || tpl.Name() == cfg.TemplatePost {
 			continue
 		}
 
 		id, lang := getLanguageFromFilename(tpl.Name())
 		if lang == "" {
-			lang = c.DefaultLanguage
+			lang = cfg.DefaultLanguage
 		}
 
 		pagesIDMap[id] = append(pagesIDMap[id], &pageData{
@@ -457,7 +472,7 @@ func renderTemplates(t *template.Template, c config, pagesData []*pageData) erro
 			}
 
 			err := renderTemplate(
-				c.OutputDirectory+"/"+p.Path,
+				cfg.OutputDirectory+"/"+p.Path,
 				page{
 					CurrentPage:           p,
 					AllPages:              pagesData,
@@ -548,7 +563,7 @@ func inArray(s []string, needle string) bool {
 }
 
 // process parses markdown file and returns pageData
-func process(b []byte, c config, source string) (*pageData, error) {
+func process(b []byte, source string) (*pageData, error) {
 	path := strings.Replace(source, ".md", ".html", 1)
 	baseDir := filepath.Dir(path)
 	metadataBytes, bodyBytes := getMetadataAndBody(b)
@@ -557,13 +572,13 @@ func process(b []byte, c config, source string) (*pageData, error) {
 		metadataBytes,
 		bodyBytes,
 		baseDir,
-		c.ThumbPath+"/"+baseDir,
+		cfg.ThumbPath+"/"+baseDir,
 	)
 	if err != nil {
 		return nil, errors.Wrapf(err, "build metadata %s", source)
 	}
 
-	if m.Draft && !c.ShowDrafts {
+	if m.Draft && !cfg.ShowDrafts {
 		return nil, errSkipDraft
 	}
 
@@ -574,31 +589,32 @@ func process(b []byte, c config, source string) (*pageData, error) {
 		id, m.Language = getLanguageFromFilename(source)
 	}
 	if m.Language == "" {
-		m.Language = c.DefaultLanguage
+		m.Language = cfg.DefaultLanguage
 	}
 	m.Language = strings.ToLower(m.Language)
 
 	if m.CommentsEnabled == nil {
-		m.CommentsEnabled = &c.CommentsEnabled
+		m.CommentsEnabled = &cfg.CommentsEnabled
 	}
 
 	markdownBody := string(bodyBytes)
 	bodyBytes = markdown.ToHTML(bodyBytes, nil, nil)
 
 	if m.TypographyEnabled == nil {
-		m.TypographyEnabled = &c.TypographyEnabled
+		m.TypographyEnabled = &cfg.TypographyEnabled
 	}
 	if m.TypographyEnabled != nil && *m.TypographyEnabled {
 		bodyBytes = typograph.NewTypograph().Process(bodyBytes)
 	}
 
 	return &pageData{
-		ID:       id,
-		Path:     path,
-		Source:   source,
-		Metadata: m,
-		Body:     string(bodyBytes),
-		Markdown: markdownBody,
+		ID:        id,
+		Path:      path,
+		Canonical: langToGetParameter(path),
+		Source:    source,
+		Metadata:  m,
+		Body:      string(bodyBytes),
+		Markdown:  markdownBody,
 	}, nil
 }
 
