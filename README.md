@@ -116,6 +116,21 @@ individual post pages:
 | `Title`     | `string` | Image title text                           |
 | `ThumbPath` | `string` | Relative path to generated thumbnail image |
 
+### Template functions
+
+The following functions are defined and can be used in templates:
+
+| Function                | Description                                       | Return type  | Example usage                                                                   |
+|-------------------------|---------------------------------------------------|--------------|---------------------------------------------------------------------------------|
+| `debugJSON`             | Prints JSON of the given object                   | `string`     | `{{ debugJSON . }}`                                                             |
+| `stripTags`             | Strips HTML tags from the given string            | `string`     | `<title>{{ stripTags .Title }}</title>`                                         |
+| `config`                | Returns config value                              | `string`     | `{{ config "SearchURL" }}`                                                      |
+| `join`                  | Joins the given list of strings                   | `string`     | `{{ join .Metadata.Tags "," }}`                                                 |
+| `prevPage`              | Returns previous page                             | `pageData`   | `{{ $prev := prevPage . }}{{ $prev.Path }}`                                     |
+| `nextPage`              | Returns next page                                 | `pageData`   | `{{ $next := nextPage . }}{{ $next.Path }}`                                     |
+| `allLanguageVariations` | Returns all language variations of the given post | `[]pageData` | `{{ $langs := allLanguageVariations . }}{{ range $langs }}{{ .Path }}{{ end }}` |
+| `i18n`                  | Returns translated string                         | `string`     | `{{ i18n "edit" }}`                                                             |
+
 ## Local development
 
 ```bash
