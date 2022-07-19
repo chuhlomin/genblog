@@ -1,5 +1,7 @@
 # GenBlog
 
+[![main](https://github.com/chuhlomin/genblog/actions/workflows/main.yml/badge.svg)](https://github.com/chuhlomin/genblog/actions/workflows/main.yml)
+[![release](https://github.com/chuhlomin/genblog/actions/workflows/release.yml/badge.svg)](https://github.com/chuhlomin/genblog/actions/workflows/release.yml)
 [![Dockerhub](https://img.shields.io/badge/docker-hub-4988CC)](https://hub.docker.com/repository/docker/chuhlomin/genblog)
 
 Generate a static blog from Markdown files.
