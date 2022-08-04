@@ -9,122 +9,122 @@ import (
 
 func TestNextPage(t *testing.T) {
 	tests := []struct {
-		page            page
+		data            Data
 		defaultLanguage string
-		nextPage        *pageData
-		prevPage        *pageData
+		nextPage        *MarkdownFile
+		prevPage        *MarkdownFile
 	}{
 		{
-			page: page{
-				CurrentPage: &pageData{
+			data: Data{
+				Current: &MarkdownFile{
 					Path:     "2021/post-1.html",
 					ID:       "2021/post-1.md",
-					Metadata: &metadata{Language: "en"},
+					Language: "en",
 				},
-				AllPages: []*pageData{
+				All: []*MarkdownFile{
 					{
 						Path:     "2021/post-2.html",
 						ID:       "2021/post-2.md",
-						Metadata: &metadata{Language: "en"},
+						Language: "en",
 					},
 					{
 						Path:     "2021/post-1.html",
 						ID:       "2021/post-1.md",
-						Metadata: &metadata{Language: "en"},
+						Language: "en",
 					},
 				},
 			},
 			defaultLanguage: "en",
-			nextPage: &pageData{
+			nextPage: &MarkdownFile{
 				Path:     "2021/post-2.html",
 				ID:       "2021/post-2.md",
-				Metadata: &metadata{Language: "en"},
+				Language: "en",
 			},
 			prevPage: nil,
 		},
 		{
-			page: page{
-				CurrentPage: &pageData{
+			data: Data{
+				Current: &MarkdownFile{
 					Path:     "2021/post-2.html",
 					ID:       "2021/post-2.md",
-					Metadata: &metadata{Language: "en"},
+					Language: "en",
 				},
-				AllPages: []*pageData{
+				All: []*MarkdownFile{
 					{
 						Path:     "2021/post-2.html",
 						ID:       "2021/post-2.md",
-						Metadata: &metadata{Language: "en"},
+						Language: "en",
 					},
 					{
 						Path:     "2021/post-1.html",
 						ID:       "2021/post-1.md",
-						Metadata: &metadata{Language: "en"},
+						Language: "en",
 					},
 				},
 			},
 			defaultLanguage: "en",
 			nextPage:        nil,
-			prevPage: &pageData{
+			prevPage: &MarkdownFile{
 				Path:     "2021/post-1.html",
 				ID:       "2021/post-1.md",
-				Metadata: &metadata{Language: "en"},
+				Language: "en",
 			},
 		},
 		{
-			page: page{
-				CurrentPage: &pageData{
+			data: Data{
+				Current: &MarkdownFile{
 					Path:     "2021/post-1.html",
 					ID:       "2021/post-1.md",
-					Metadata: &metadata{Language: "en"},
+					Language: "en",
 				},
-				AllPages: []*pageData{
+				All: []*MarkdownFile{
 					{
 						Path:     "2021/post-2.html",
 						ID:       "2021/post-2.md",
-						Metadata: &metadata{Language: "en"},
+						Language: "en",
 					},
 					{
 						Path:     "2021/post-1_ru.html",
 						ID:       "2021/post-1.md",
-						Metadata: &metadata{Language: "ru"},
+						Language: "ru",
 					},
 					{
 						Path:     "2021/post-1.html",
 						ID:       "2021/post-1.md",
-						Metadata: &metadata{Language: "en"},
+						Language: "en",
 					},
 				},
 			},
 			defaultLanguage: "en",
-			nextPage: &pageData{
+			nextPage: &MarkdownFile{
 				Path:     "2021/post-2.html",
 				ID:       "2021/post-2.md",
-				Metadata: &metadata{Language: "en"},
+				Language: "en",
 			},
 			prevPage: nil,
 		},
 		{
-			page: page{
-				CurrentPage: &pageData{
+			data: Data{
+				Current: &MarkdownFile{
 					Path:     "2021/post-1_ru.html",
 					ID:       "2021/post-1.md",
-					Metadata: &metadata{Language: "ru"},
+					Language: "ru",
 				},
-				AllPages: []*pageData{
+				All: []*MarkdownFile{
 					{
 						Path:     "2021/post-2.html",
 						ID:       "2021/post-2.md",
-						Metadata: &metadata{Language: "en"},
+						Language: "en",
 					},
 					{
 						Path:     "2021/post-1_ru.html",
 						ID:       "2021/post-1.md",
-						Metadata: &metadata{Language: "ru"},
+						Language: "ru",
 					},
 					{
 						Path:     "2021/post-1.html",
 						ID:       "2021/post-1.md",
-						Metadata: &metadata{Language: "en"},
+						Language: "en",
 					},
 				},
 			},
@@ -133,98 +133,98 @@ func TestNextPage(t *testing.T) {
 			prevPage:        nil,
 		},
 		{
-			page: page{
-				CurrentPage: &pageData{
+			data: Data{
+				Current: &MarkdownFile{
 					Path:     "2021/post-1_ru.html",
 					ID:       "2021/post-1.md",
-					Metadata: &metadata{Language: "ru"},
+					Language: "ru",
 				},
-				AllPages: []*pageData{
+				All: []*MarkdownFile{
 					{
 						Path:     "2021/post-3_ru.html",
 						ID:       "2021/post-3.md",
-						Metadata: &metadata{Language: "ru"},
+						Language: "ru",
 					},
 					{
 						Path:     "2021/post-2_ru.html",
 						ID:       "2021/post-2.md",
-						Metadata: &metadata{Language: "ru"},
+						Language: "ru",
 					},
 					{
 						Path:     "2021/post-2.html",
 						ID:       "2021/post-2.md",
-						Metadata: &metadata{Language: "en"},
+						Language: "en",
 					},
 					{
 						Path:     "2021/post-1_ru.html",
 						ID:       "2021/post-1.md",
-						Metadata: &metadata{Language: "ru"},
+						Language: "ru",
 					},
 					{
 						Path:     "2021/post-1.html",
 						ID:       "2021/post-1.md",
-						Metadata: &metadata{Language: "en"},
+						Language: "en",
 					},
 				},
 			},
 			defaultLanguage: "en",
-			nextPage: &pageData{
+			nextPage: &MarkdownFile{
 				Path:     "2021/post-2_ru.html",
 				ID:       "2021/post-2.md",
-				Metadata: &metadata{Language: "ru"},
+				Language: "ru",
 			},
 			prevPage: nil,
 		},
 		{
-			page: page{
-				CurrentPage: &pageData{
+			data: Data{
+				Current: &MarkdownFile{
 					Path:     "2021/post-2_ru.html",
 					ID:       "2021/post-2.md",
-					Metadata: &metadata{Language: "ru"},
+					Language: "ru",
 				},
-				AllPages: []*pageData{
+				All: []*MarkdownFile{
 					{
 						Path:     "2021/post-2_ru.html",
 						ID:       "2021/post-2.md",
-						Metadata: &metadata{Language: "ru"},
+						Language: "ru",
 					},
 					{
 						Path:     "2021/post-2.html",
 						ID:       "2021/post-2.md",
-						Metadata: &metadata{Language: "en"},
+						Language: "en",
 					},
 					{
 						Path:     "2021/post-1_ru.html",
 						ID:       "2021/post-1.md",
-						Metadata: &metadata{Language: "ru"},
+						Language: "ru",
 					},
 					{
 						Path:     "2021/post-1.html",
 						ID:       "2021/post-1.md",
-						Metadata: &metadata{Language: "en"},
+						Language: "en",
 					},
 				},
 			},
 			defaultLanguage: "en",
 			nextPage:        nil,
-			prevPage: &pageData{
+			prevPage: &MarkdownFile{
 				Path:     "2021/post-1_ru.html",
 				ID:       "2021/post-1.md",
-				Metadata: &metadata{Language: "ru"},
+				Language: "ru",
 			},
 		},
 	}
 
 	for _, test := range tests {
-		np := nextPage(test.page)
+		np := nextPage(test.data)
 		require.Equal(t, test.nextPage, np, "next page")
 
-		pp := prevPage(test.page)
+		pp := prevPage(test.data)
 		require.Equal(t, test.prevPage, pp, "prev page")
 	}
 }
 
-func TestGetLanguageFromFilename(t *testing.T) {
+func TestGetIDAndLangFromFilename(t *testing.T) {
 	tests := []struct {
 		filename string
 		id       string
@@ -253,7 +253,7 @@ func TestGetLanguageFromFilename(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		id, lang := getLanguageFromFilename(test.filename)
+		id, lang := getIDAndLangFromFilename(test.filename)
 		require.Equal(t, test.id, id, "id")
 		require.Equal(t, test.lang, lang, "lang")
 	}
@@ -319,7 +319,8 @@ func TestLangGetParameter(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		getParameter := langGetParameter(test.url, test.defaultLanguage)
+		cfg = config{DefaultLanguage: test.defaultLanguage}
+		getParameter := langGetParameter(test.url)
 
 		require.Equal(
 			t,

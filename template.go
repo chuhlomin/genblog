@@ -13,13 +13,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-const templatePost = "post.html"
-
 var fm = template.FuncMap{
 	"debugJSON":             debugJSON,             // JSON debug print
 	"join":                  join,                  // alias for strings.Join
-	"bool":                  boolean,               // Go teamplates doesn't check value of a pointer
-	"back":                  back,                  // relative path to the root directory from current page
+	"bool":                  boolean,               // Check the value of a pointer to bool
 	"prevPage":              prevPage,              // previous page data
 	"nextPage":              nextPage,              // next page data
 	"allLanguageVariations": allLanguageVariations, // all pages that has the same ID as current page
@@ -83,33 +80,29 @@ func boolean(ptr *bool) bool {
 	return *ptr
 }
 
-func back(path string) string {
-	return strings.Repeat("../", len(strings.Split(path, "/"))-1)
-}
-
-func prevPage(page page) (prev *pageData) {
+func prevPage(data Data) (prev *MarkdownFile) {
 	// technically, it get's the NEXT page
 	// from the list of all pages SORTED by created date (descending)
 	// but chronologically, it's the PREVIOUS page
 	prev = nil
 
 	var (
-		i int
-		p *pageData
+		i    int
+		file *MarkdownFile
 	)
 
-	for i, p = range page.AllPages {
-		if p.Path == page.CurrentPage.Path { // searching for the current page
+	for i, file = range data.All {
+		if file.Path == data.Current.Path { // searching for the current page
 			break
 		}
 	}
 
-	for _, p := range page.AllPages[i+1:] {
-		if p.ID == page.CurrentPage.ID { // skipping same pages in different languages
+	for _, file := range data.All[i+1:] {
+		if file.ID == data.Current.ID { // skipping same pages in different languages
 			continue
 		}
-		if p.Metadata.Language == page.CurrentPage.Metadata.Language { // first page in the same language
-			prev = p
+		if file.Language == data.Current.Language { // first page in the same language
+			prev = file
 			break
 		}
 	}
@@ -117,35 +110,35 @@ func prevPage(page page) (prev *pageData) {
 	return
 }
 
-func nextPage(page page) (next *pageData) {
+func nextPage(data Data) (next *MarkdownFile) {
 	// technically, it get's the PREVIOUS page
 	// from the list of all pages SORTED by created date (descending)
 	// but chronologically, it's the NEXT page
 	next = nil
 
-	for _, p := range page.AllPages {
-		if p.Path == page.CurrentPage.Path { // searching for the current page
+	for _, file := range data.All {
+		if file.Path == data.Current.Path { // searching for the current page
 			break // this is the most recent page, so there's no next page
 		}
-		if p.Metadata.Language == page.CurrentPage.Metadata.Language {
+		if file.Language == data.Current.Language {
 			// last seen page in the same language
-			next = p
+			next = file
 		}
 	}
 
 	return
 }
 
-func allLanguageVariations(page page) []*pageData {
-	if len(page.AllLanguageVariations) > 0 {
-		return page.AllLanguageVariations
+func allLanguageVariations(data Data) []*MarkdownFile {
+	if len(data.LanguageVariations) > 0 {
+		return data.LanguageVariations
 	}
 
-	var result []*pageData
+	var result []*MarkdownFile
 
-	for _, p := range page.AllPages {
-		if p.ID == page.CurrentPage.ID {
-			result = append(result, p)
+	for _, file := range data.All {
+		if file.ID == data.Current.ID {
+			result = append(result, file)
 		}
 	}
 
@@ -154,7 +147,7 @@ func allLanguageVariations(page page) []*pageData {
 	return result
 }
 
-func langGetParameter(path, defaultLanguage string) string {
+func langGetParameter(path string) string {
 	if !langSuffix.MatchString(path) {
 		return ""
 	}
@@ -165,7 +158,7 @@ func langGetParameter(path, defaultLanguage string) string {
 	}
 
 	lang := match[1]
-	if lang == defaultLanguage {
+	if lang == cfg.DefaultLanguage {
 		return ""
 	}
 

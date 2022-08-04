@@ -15,10 +15,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Get the tag
-        id: tag
-        run: echo ::set-output name=value::${GITHUB_REF/refs\/tags\//}
-
       - name: Build and push to CR
         uses: chuhlomin/actions/docker-build-push@main
         with:
@@ -26,4 +22,4 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
           image_name: ${{ env.DOCKER_IMAGE }}
           tags: |
-            ${{ env.DOCKER_IMAGE }}:${{ steps.tag.outputs.value }}
+            ${{ env.DOCKER_IMAGE }}:${{ github.ref_name }}

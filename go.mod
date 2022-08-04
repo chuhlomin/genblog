@@ -6,7 +6,6 @@ require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/caarlos0/env/v6 v6.9.3
 	github.com/chuhlomin/search v0.0.5
-	github.com/chuhlomin/typograph v0.0.0-20211019013004-dc1e68187eea
 	github.com/disintegration/imaging v1.6.2
 	github.com/gomarkdown/markdown v0.0.0-20190912180731-281270bc6d83
 	github.com/nicksnyder/go-i18n/v2 v2.1.2

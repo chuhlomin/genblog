@@ -8,39 +8,33 @@ Generate a static blog from Markdown files.
 
 ## Inputs
 
-| Name                      | Description                                                                        | Default                     | Required |
-|---------------------------|------------------------------------------------------------------------------------|-----------------------------|----------|
-| `title`                   | Title of the blog                                                                  |                             | true     |
-| `short_description`       | Short description of the blog                                                      |                             | true     |
-| `author`                  | Author of the blog                                                                 |                             | true     |
-| `source_directory`        | Path to directory with Markdown files                                              | "."                         | false    |
-| `output_directory`        | Path to output directory                                                           | "output"                    | false    |
-| `templates_directory`     | Path to templates directory                                                        | "templates"                 | false    |
-| `template_post`           | Filename of the template for posts                                                 | "post.html"                 | false    |
-| `templates`               | Comma-separated templates filenames that will be processed in addition to posts    | "index.html,404.html"       | false    |
-| `allowed_file_extensions` | Comma-separated templates extensions that will be copied as is to output directory | ".jpeg,.jpg,.png,.mp4,.pdf" | false    |
-| `default_language`        | Default language of the blog                                                       | "en"                        | false    |
-| `comments_enabled`        | Enable comments                                                                    | "false"                     | false    |
-| `comments_site_id`        | Site ID for Remark42 comments                                                      | ""                          | false    |
-| `show_drafts`             | Show drafts                                                                        | "false"                     | false    |
-| `thumb_path`              | Path to thumbnails directory                                                       | "thumb"                     | false    |
-| `thumb_max_width`         | Max width of thumbnails                                                            | "140"                       | false    |
-| `thumb_max_height`        | Max height of thumbnails                                                           | "140"                       | false    |
-| `search_enabled`          | Create `bleve` index directory                                                     | "false"                     | false    |
-| `search_url`              | Search URL prefix                                                                  | ""                          | false    |
-| `search_path`             | Path to `bleve` index directory                                                    | "index.bleve"               | false    |
+| Name                      | Description                                                                     | Default                    |
+|---------------------------|---------------------------------------------------------------------------------|----------------------------|
+| `base_path`               | Base path for all generated URLs                                                | "/"                        |
+| `source_directory`        | Path to directory with Markdown files                                           | "."                        |
+| `output_directory`        | Path to output directory                                                        | "output"                   |
+| `allowed_file_extensions` | Comma-separated list of allowed file extensions that will be copied as is       | "jpeg,.jpg,.png,.mp4,.pdf" |
+| `templates_directory`     | Path to templates directory                                                     | "_templates"               |
+| `default_template`        | Filename of the default template                                                | "_post.html"               |
+| `default_language`        | Default language of the blog                                                    | "en"                       |
+| `comments_enabled`        | Enable comments                                                                 | "false"                    |
+| `comments_site_id`        | Site ID for Remark42 comments                                                   | ""                         |
+| `show_drafts`             | Show drafts                                                                     | "false"                    |
+| `thumb_path`              | Path to thumbnails directory                                                    | "thumb"                    |
+| `thumb_max_width`         | Max width of thumbnails                                                         | "140"                      |
+| `thumb_max_height`        | Max height of thumbnails                                                        | "140"                      |
+| `search_enabled`          | Create `bleve` index directory                                                  | "false"                    |
+| `search_url`              | Search URL prefix                                                               | ""                         |
+| `search_path`             | Path to `bleve` index directory                                                 | "index.bleve"              |
 
 Genblog scans files in the `source_directory`.
 
 For every Markdown file it renders HTML page in the `output_directory`
-using `template_post` in the `templates_directory`,
+using `default_template` in the `templates_directory`,
 keeping the same directory structure.
 
 For any file that have `allowed_file_extensions` it just copies it to the
 `output_directory`, keeping the same directory structure.
-
-Then Genblog renders all templates in `templates` list, passing list of all posts there.
-That is useful for index page, sitemap and RSS feeds.
 
 ## Post metadata
 
@@ -60,44 +54,33 @@ Body
 
 Genblog uses Go [html/template](https://pkg.go.dev/html/template) to render pages.
 
-### `page`
+### `Data`
 
-Genblog passes the following structure to `template_post` to render
+Genblog passes the following structure to `default_template` to render
 individual post pages:
 
-| Field             | Type         | Description                                                     |
-|-------------------|--------------|-----------------------------------------------------------------|
-| `CurrentPage`     | `pageData`   | Current post, corresponds to a single Markdown file (see below) |
-| `AllPages`        | `[]pageData` | Array of all available posts                                    |
-| `DefaultLanguage` | `string`     | Site language, default to "en"                                  |
-| `CommentsSiteID`  | `string`     | Site ID for the comments engine (Remark42)                      |
-| `Timestamp`       | `int64`      | Unix timestamp when Genblog was started                         |
+| Field       | Type             | Description                                                     |
+|-------------|------------------|-----------------------------------------------------------------|
+| `Current`   | `MarkdownFile`   | Current post, corresponds to a single Markdown file (see below) |
+| `All`       | `[]MarkdownFile` | Array of all available posts                                    |
+| `Timestamp` | `int64`          | Unix timestamp when Genblog was started                         |
 
-### `pageData`
+### `MarkdownFile`
 
-`pageData` structure has these fields:
-
-| Field      | Type       | Description                                                  |
-|------------|------------|--------------------------------------------------------------|
-| `Source`   | `string`   | Relative path to the source Markdown file                    |
-| `Path`     | `string`   | Relative path to the generated HTML file                     |
-| `ID`       | `string`   | Same post in different languages will have the same ID value |
-| `Metadata` | `metadata` | Post metadata (see below)                                    |
-| `Body`     | `string`   | Rendered HTML body                                           |
-| `Markdown` | `string`   | Markdown file content                                        |
-
-### `metadata`
-
-`metadata` structure has these fields:
+`MarkdownFile` structure has these fields:
 
 | Field             | Type       | Description                                                                    |
 |-------------------|------------|--------------------------------------------------------------------------------|
-| `Type`            | `string`   | Page type, "`post`" by default                                                 |
+| `Source`          | `string`   | Relative path to the source Markdown file                                      |
+| `Path`            | `string`   | Relative path to the generated HTML file                                       |
+| `Canonical`       | `string`   | Canonical URL of the post                                                      |
+| `ID`              | `string`   | Same post in different languages will have the same ID value                   |
+| `Markdown`        | `string`   | Markdown file content                                                          |
 | `Title`           | `string`   | By default equals to `H1` in Markdown file                                     |
+| `Body`            | `string`   | Rendered HTML body                                                             |
 | `Date`            | `string`   | date when post was published, in format "2006-01-02"                           |
 | `Tags`            | `[]string` | Post tags, by default parsed from the post                                     |
 | `Language`        | `string`   | Language ("en", "ru", ...), parsed from filename, overrides `default_language` |
-| `Slug`            | `string`   | Slug is used for the URL, by default it's the same as the file path            |
 | `Description`     | `string`   | Used in the `meta` description tag                                             |
 | `Author`          | `string`   | Used in the `meta` author tag, overrides `author` input                        |
 | `Keywords`        | `string`   | Used in the `meta` keywords tag                                                |
@@ -132,13 +115,3 @@ The following functions are defined and can be used in templates:
 | `nextPage`              | Returns next page                                 | `pageData`   | `{{ $next := nextPage . }}{{ $next.Path }}`                                     |
 | `allLanguageVariations` | Returns all language variations of the given post | `[]pageData` | `{{ $langs := allLanguageVariations . }}{{ range $langs }}{{ .Path }}{{ end }}` |
 | `i18n`                  | Returns translated string                         | `string`     | `{{ i18n "edit" }}`                                                             |
-
-## Local development
-
-```bash
-make build
-```
-
-```fish
-echo 'fish_add_path /path/to/repo' >> ~/.config/fish/config.fish
-```

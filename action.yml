@@ -8,14 +8,8 @@ branding:
   color: purple
 
 inputs:
-  title:
-    description: Title of the blog
-    required: true
-  short_description:
-    description: Short description of the blog
-    required: true
-  author:
-    description: Author of the blog
+  base_path:
+    description: Base path for all generated URLs
     required: true
   source_directory:
     description: Path to directory with Markdown filenames
@@ -25,32 +19,24 @@ inputs:
     description: Path to output directory
     required: false
     default: "output"
+  allowed_file_extensions:
+    description: Comma-separated list of allowed file extensions that will be copied as is
+    required: false
+    default: ".jpeg,.jpg,.png,.mp4,.pdf"
   templates_directory:
     description: Path to templates directory
     required: false
-    default: "templates"
-  template_post:
-    description: Name of the template for posts
+    default: "_templates"
+  default_template:
+    description: Filename of the default template
     required: false
-    default: "post.html"
-  templates:
-    description: >
-      Comma-separated templates filenames that will be processed
-      in addition to posts
-    required: false
-    default: "index.html,404.html"
-  allowed_file_extensions:
-    description: >
-      Comma-separated templates extensions that will be copied as is
-      to output directory
-    required: false
-    default: ".jpeg,.jpg,.png,.mp4,.pdf"
+    default: "_post.html"
   default_language:
     description: Default language for the blog
     required: false
     default: "en"
   comments_enabled:
-    description: Enable typography
+    description: Enable comments
     required: false
     default: "false"
   comments_site_id:
@@ -87,4 +73,4 @@ inputs:
 
 runs:
   using: docker
-  image: 'docker://chuhlomin/genblog:v0.10'
+  image: 'docker://chuhlomin/genblog:v1.0-rc1'

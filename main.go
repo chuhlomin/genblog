@@ -1,21 +1,13 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
-	"crypto/sha1"
-	"encoding/hex"
 	goimage "image"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"sort"
 	"strings"
 	"text/template"
@@ -24,34 +16,28 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/caarlos0/env/v6"
 	"github.com/chuhlomin/search"
-	"github.com/chuhlomin/typograph"
 	"github.com/disintegration/imaging"
-	"github.com/gomarkdown/markdown"
 	i "github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/pkg/errors"
 	"golang.org/x/text/language"
-	"gopkg.in/yaml.v3"
 )
 
 const (
-	permFile = 0644
-	permDir  = 0755
+	permDir  = 0755 // permission used to create directories in cfg.OutputDirectory
+	permFile = 0644 // permissions for
 )
 
 type config struct {
-	Title                 string   `env:"INPUT_TITLE,required"`
-	ShortDescription      string   `env:"INPUT_SHORT_DESCRIPTION,required"`
-	Author                string   `env:"INPUT_AUTHOR,required"`
+	BasePath              string   `env:"INPUT_BASE_PATH" envDefault:"/"`
 	SourceDirectory       string   `env:"INPUT_SOURCE_DIRECTORY" envDefault:"."`
 	OutputDirectory       string   `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"./output"`
-	TemplatesDirectory    string   `env:"INPUT_TEMPLATES_DIRECTORY" envDefault:"templates"`
-	TemplatePost          string   `env:"INPUT_TEMPLATE_POST" envDefault:"post.html"`
 	AllowedFileExtensions []string `env:"INPUT_ALLOWED_FILE_EXTENSIONS" envDefault:".jpeg,.jpg,.png,.mp4,.pdf" envSeparator:","`
+	TemplatesDirectory    string   `env:"INPUT_TEMPLATES_DIRECTORY" envDefault:"_templates"`
+	DefaultTemplate       string   `env:"INPUT_DEFAULT_TEMPLATE" envDefault:"_post.html"`
 	DefaultLanguage       string   `env:"INPUT_DEFAULT_LANGUAGE" envDefault:"en"`
-	TypographyEnabled     bool     `env:"INPUT_TYPOGRAPHY_ENABLED" envDefault:"false"`
 	CommentsEnabled       bool     `env:"INPUT_COMMENTS_ENABLED" envDefault:"true"`
 	CommentsSiteID        string   `env:"INPUT_COMMENTS_SITE_ID" envDefault:""`
-	ShowDrafts            bool     `env:"INPUT_SHOW_DRAFTS" envDefault:"false"`
+	ShowDrafts            bool     `env:"INPUT_SHOW_DRAFTS"`
 	ThumbPath             string   `env:"INPUT_THUMB_PATH" envDefault:"thumb"`
 	ThumbMaxWidth         int      `env:"INPUT_THUMB_MAX_WIDTH" envDefault:"140"`
 	ThumbMaxHeight        int      `env:"INPUT_THUMB_MAX_HEIGHT" envDefault:"140"`
@@ -60,6 +46,9 @@ type config struct {
 	SearchPath            string   `env:"INPUT_SEARCH_PATH" envDefault:"search_index"`
 }
 
+// GetString returns the value of the environment variable named by the key.
+// If the variable is not present, GetString returns empty string.
+// Used in `config` template function to access config values.
 func (c config) GetString(key string) string {
 	// use reflect to get the value of the key
 	v := reflect.ValueOf(c)
@@ -71,123 +60,16 @@ func (c config) GetString(key string) string {
 	return ""
 }
 
+// cfg is a global variable, used in MarkdownFile struct and in template
 var cfg config
 
-type tags []string
-
-func (t *tags) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var s string
-	if err := unmarshal(&s); err != nil {
-		return err
-	}
-
-	*t = strings.Split(s, ", ")
-	return nil
+// Data
+type Data struct {
+	Current            *MarkdownFile
+	All                []*MarkdownFile
+	LanguageVariations []*MarkdownFile // used only for index.html
+	Timestamp          int64
 }
-
-// image is a struct that contains metadata of image from the post
-type image struct {
-	Path      string `yaml:"path"`
-	Alt       string `yaml:"alt"`
-	Title     string `yaml:"title"`
-	ThumbPath string `yaml:"thumb_path"`
-	Promo     bool   `yaml:"promo"`
-}
-
-// metadata is a struct that contains metadata for a post
-// it is used to render the template.
-// Each markdown file may have a header wrapped by `---\n`, eg:
-//    ---
-//    title: "Title"
-//    slug: "title"
-//    date: "2021-10-24"
-//    ---
-//    Page content
-type metadata struct {
-	Type              string  `yaml:"type"`                       // page type, by default "post"
-	Title             string  `yaml:"title" indexer:"text"`       // by default equals to H1 in Markdown file
-	Date              string  `yaml:"date" indexer:"date"`        // date when post was published, in format "2006-01-02"
-	Tags              tags    `yaml:"tags"`                       // post tags, by default parsed from the post
-	Language          string  `yaml:"language"`                   // language ("en", "ru", ...), parsed from filename, overrides config.DefaultLanguage
-	Slug              string  `yaml:"slug"`                       // slug is used for the URL, by default it's the same as the file path
-	Description       string  `yaml:"description" indexer:"text"` // description is used for the meta description
-	Author            string  `yaml:"author"`                     // author is used for the meta author, overrides config.Author
-	Keywords          string  `yaml:"keywords"`                   // keywords is used for the meta keywords
-	Draft             bool    `yaml:"draft"`                      // draft is used to mark post as draft
-	Template          string  `yaml:"template"`                   // template to use in config.TemplatesDirectory, overrides default "post.html"
-	TypographyEnabled *bool   `yaml:"typography_enabled"`         // typography_enabled overrides config.TypographyEnabled
-	CommentsEnabled   *bool   `yaml:"comments_enabled"`           // comments_enabled overrides config.CommentsEnabled
-	Image             string  `yaml:"image"`                      // image associated with the post; it's used to generate the thumbnailPath
-	Images            []image // images in the post
-}
-
-type pageData struct {
-	Source    string // path to the source markdown file
-	Path      string // path to the generated HTML file
-	Canonical string // canonical URL
-	ID        string // same post in different languages will have the same ID value
-	Metadata  *metadata
-	Body      string `indexer:"no_store"`
-	Markdown  string `indexer:"text"`
-}
-
-func (pd pageData) Type() string {
-	suffix := ""
-	lang := pd.Language()
-	if lang != "en" {
-		suffix = "_" + lang
-	}
-	return "post" + suffix
-}
-
-func (pd pageData) Language() string {
-	if pd.Metadata == nil {
-		return "en"
-	}
-	return pd.Metadata.Language
-}
-
-type page struct {
-	CurrentPage           *pageData
-	AllPages              []*pageData
-	AllLanguageVariations []*pageData // used only for index.html
-	DefaultLanguage       string
-	CommentsSiteID        string
-	Timestamp             int64
-}
-
-type ByCreated []*pageData
-
-func (c ByCreated) Len() int           { return len(c) }
-func (c ByCreated) Less(i, j int) bool { return c[i].Metadata.Date > c[j].Metadata.Date }
-func (c ByCreated) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
-
-type ByLanguage []*pageData
-
-func (c ByLanguage) Len() int           { return len(c) }
-func (c ByLanguage) Less(i, j int) bool { return c[i].Metadata.Language > c[j].Metadata.Language }
-func (c ByLanguage) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
-
-type Pair struct {
-	Key   string
-	Value int
-}
-
-type PairList []Pair
-
-func (p PairList) Len() int           { return len(p) }
-func (p PairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-func (p PairList) Less(i, j int) bool { return p[i].Value < p[j].Value }
-
-type TagsCounterList map[string]int
-
-func (tcl TagsCounterList) Add(tags []string) {
-	for _, tag := range tags {
-		tcl[tag]++
-	}
-}
-
-var errSkipDraft = errors.New("skip draft")
 
 var bundle *i.Bundle
 
@@ -231,13 +113,13 @@ func run() error {
 		return errors.Wrap(err, "templates parsing")
 	}
 
-	tp := t.Lookup(cfg.TemplatePost)
-	if tp == nil {
-		return errors.Errorf("template %q not found", cfg.TemplatePost)
+	defaultTemplate := t.Lookup(cfg.DefaultTemplate)
+	if defaultTemplate == nil {
+		return errors.Errorf("template %q not found", cfg.DefaultTemplate)
 	}
 
 	// scan source directory
-	var pagesData []*pageData
+	var markdownFiles []*MarkdownFile
 	tagsCounter := TagsCounterList{}
 
 	channelFiles := make(chan string)
@@ -251,41 +133,40 @@ func run() error {
 			if more {
 				switch filepath.Ext(path) {
 				case ".md":
-					b, err := ioutil.ReadFile(cfg.SourceDirectory + "/" + path)
+					md, err := ParseMarkdownFile(path)
 					if err != nil {
-						log.Printf("ERROR read file %q: %v", cfg.SourceDirectory+"/"+path, err)
+						log.Printf("ERROR: processing markdown file %s: %v", path, err)
 						continue
 					}
 
-					p, err := process(b, path)
-					if p == nil {
-						log.Printf("ERROR failed to process file: %q", cfg.SourceDirectory+"/"+path)
+					if md.Draft && !cfg.ShowDrafts {
+						log.Printf("DEBUG skipping draft %v", path)
 						continue
 					}
 
-					for _, image := range p.Metadata.Images {
+					for _, image := range md.Images {
 						channelImages <- image
 					}
 
-					if p.Metadata.Language == cfg.DefaultLanguage {
-						tagsCounter.Add(p.Metadata.Tags)
+					if md.Language == cfg.DefaultLanguage {
+						// count tags only for default language,
+						// assuming that post in different languages have the same tags
+						// and that all posts have a version in default language
+						tagsCounter.Add(md.Tags)
 					}
 
-					if err != nil {
-						if err == errSkipDraft {
-							log.Printf("DEBUG skipping draft %v", path)
-							continue
-						}
-						log.Printf("ERROR processing markdown file %s: %v", path, err)
-						continue
-					}
-					pagesData = append(pagesData, p)
+					markdownFiles = append(markdownFiles, md)
+
 				case ".toml":
+					// Optional .toml files are used to define translations.
+					// They power `i18n` template function.
 					_, err := bundle.LoadMessageFile(cfg.SourceDirectory + "/" + path)
 					if err != nil {
 						log.Printf("ERROR load message file %q: %v", cfg.SourceDirectory+"/"+path, err)
 					}
+
 				default:
+					// any other files will be copied to output directory
 					copyFile(
 						cfg.SourceDirectory+"/"+path,
 						cfg.OutputDirectory+"/"+path,
@@ -336,22 +217,22 @@ func run() error {
 	<-doneFiles
 	close(channelImages)
 
-	sort.Sort(ByCreated(pagesData))
+	sort.Sort(ByCreated(markdownFiles))
 
-	log.Println("Rendering posts...")
-	if err = renderPages(pagesData, tp); err != nil {
+	log.Println("Rendering markdown files...")
+	if err = renderMarkdownFiles(markdownFiles, defaultTemplate); err != nil {
 		return errors.Wrap(err, "rendering pages")
 	}
 
 	printTagsStags(tagsCounter)
 
-	log.Println("Rendering pages...")
-	if err := renderTemplates(t, pagesData); err != nil {
+	log.Println("Rendering templates...")
+	if err := renderTemplates(t, markdownFiles); err != nil {
 		return errors.Wrap(err, "rendering templates")
 	}
 
 	if cfg.SearchEnabled {
-		if err := createSearchIndex(pagesData, cfg.SearchPath); err != nil {
+		if err := createSearchIndex(markdownFiles, cfg.SearchPath); err != nil {
 			return errors.Wrap(err, "search index creation")
 		}
 	}
@@ -407,60 +288,59 @@ func resizeImage(srcDir, path, thumbPath string, maxWidth, maxHeight int) error 
 	return nil
 }
 
-func renderPages(pagesData []*pageData, defaultTmpl *template.Template) error {
-	for _, p := range pagesData {
+func renderMarkdownFiles(files []*MarkdownFile, defaultTmpl *template.Template) error {
+	for _, file := range files {
 		tmpl := defaultTmpl
-		if p.Metadata.Template != "" {
-			tmpl = defaultTmpl.Lookup(p.Metadata.Template)
+		if file.Template != "" {
+			tmpl = defaultTmpl.Lookup(file.Template)
 			if tmpl == nil {
-				return errors.Errorf("template %q not found", p.Metadata.Template)
+				return errors.Errorf("template %q not found", file.Template)
 			}
 		}
 
 		if err := renderTemplate(
-			cfg.OutputDirectory+"/"+p.Path,
-			page{
-				CurrentPage:     p,
-				AllPages:        pagesData,
-				DefaultLanguage: cfg.DefaultLanguage,
-				CommentsSiteID:  cfg.CommentsSiteID,
-				Timestamp:       ts,
+			cfg.OutputDirectory+"/"+file.Path,
+			Data{
+				Current:   file,
+				All:       files,
+				Timestamp: ts,
 			},
 			tmpl,
 		); err != nil {
-			return errors.Wrapf(err, "rendering page %q", p.Path)
+			return errors.Wrapf(err, "rendering page %q", file.Path)
 		}
 	}
 	return nil
 }
 
-func renderTemplates(t *template.Template, pagesData []*pageData) error {
-	pagesIDMap := make(map[string][]*pageData)
+func renderTemplates(t *template.Template, files []*MarkdownFile) error {
+	mapID := make(map[string][]*MarkdownFile)
 
-	// group pages by IP
+	// group pages by ID
 	for _, tpl := range t.Templates() {
+		filename := tpl.Name()
 		// if template starts with underscore
 		// or if template name is empty (root)
 		// or it is a "post" template – skip it
-		if strings.HasPrefix(tpl.Name(), "_") || tpl.Name() == "" || tpl.Name() == cfg.TemplatePost {
+		if strings.HasPrefix(filename, "_") ||
+			filename == "" ||
+			filename == cfg.DefaultTemplate {
 			continue
 		}
 
-		id, lang := getLanguageFromFilename(tpl.Name())
+		id, lang := getIDAndLangFromFilename(filename)
 		if lang == "" {
 			lang = cfg.DefaultLanguage
 		}
 
-		pagesIDMap[id] = append(pagesIDMap[id], &pageData{
-			ID:   id,
-			Path: tpl.Name(),
-			Metadata: &metadata{
-				Language: lang,
-			},
+		mapID[id] = append(mapID[id], &MarkdownFile{
+			ID:       id,
+			Path:     filename,
+			Language: lang,
 		})
 	}
 
-	for _, pages := range pagesIDMap {
+	for _, pages := range mapID {
 		sort.Sort(ByLanguage(pages))
 
 		for _, p := range pages {
@@ -473,11 +353,11 @@ func renderTemplates(t *template.Template, pagesData []*pageData) error {
 
 			err := renderTemplate(
 				cfg.OutputDirectory+"/"+p.Path,
-				page{
-					CurrentPage:           p,
-					AllPages:              pagesData,
-					AllLanguageVariations: pages,
-					Timestamp:             ts,
+				Data{
+					Current:            p,
+					All:                files,
+					LanguageVariations: pages,
+					Timestamp:          ts,
 				},
 				tmpl,
 			)
@@ -515,14 +395,17 @@ func copyFile(src, dst string) error {
 	return out.Sync()
 }
 
-// createDirectory creates directory recurcively
-func createDirectory(path string) error {
-	if _, err := os.Stat(path); err != nil {
+// createDirectory creates directory if it doesn't exsist
+func createDirectory(dir string) error {
+	if _, err := os.Stat(dir); err != nil {
 		if os.IsNotExist(err) {
-			if err := os.MkdirAll(path, permDir); err != nil {
-				return errors.Wrapf(err, "create directory %q", path)
+			if err := os.MkdirAll(dir, permDir); err != nil {
+				return errors.Wrapf(err, "create directory %q", dir)
 			}
+			return nil
 		}
+
+		return errors.Wrapf(err, "stat directory %q", dir)
 	}
 	return nil
 }
@@ -543,10 +426,10 @@ func readSourceDirectory(path string, allowedExtensions []string, filesChannel c
 
 		ext := filepath.Ext(path)
 
-		if (ext == ".md" && path != "README.md") || inArray(allowedExtensions, ext) {
-			filesChannel <- path
-		}
-		if ext == ".toml" {
+		if (ext == ".md" && path != "README.md") ||
+			ext == ".toml" ||
+			inArray(allowedExtensions, ext) {
+
 			filesChannel <- path
 		}
 		return nil
@@ -562,250 +445,7 @@ func inArray(s []string, needle string) bool {
 	return false
 }
 
-// process parses markdown file and returns pageData
-func process(b []byte, source string) (*pageData, error) {
-	path := strings.Replace(source, ".md", ".html", 1)
-	baseDir := filepath.Dir(path)
-	metadataBytes, bodyBytes := getMetadataAndBody(b)
-
-	m, bodyBytes, err := buildMetadata(
-		metadataBytes,
-		bodyBytes,
-		baseDir,
-		cfg.ThumbPath+"/"+baseDir,
-	)
-	if err != nil {
-		return nil, errors.Wrapf(err, "build metadata %s", source)
-	}
-
-	if m.Draft && !cfg.ShowDrafts {
-		return nil, errSkipDraft
-	}
-
-	id := source
-
-	if m.Language == "" {
-		// if file ends with _en.md, use en as language
-		id, m.Language = getLanguageFromFilename(source)
-	}
-	if m.Language == "" {
-		m.Language = cfg.DefaultLanguage
-	}
-	m.Language = strings.ToLower(m.Language)
-
-	if m.CommentsEnabled == nil {
-		m.CommentsEnabled = &cfg.CommentsEnabled
-	}
-
-	markdownBody := string(bodyBytes)
-	bodyBytes = markdown.ToHTML(bodyBytes, nil, nil)
-
-	if m.TypographyEnabled == nil {
-		m.TypographyEnabled = &cfg.TypographyEnabled
-	}
-	if m.TypographyEnabled != nil && *m.TypographyEnabled {
-		bodyBytes = typograph.NewTypograph().Process(bodyBytes)
-	}
-
-	return &pageData{
-		ID:        id,
-		Path:      path,
-		Canonical: langToGetParameter(path),
-		Source:    source,
-		Metadata:  m,
-		Body:      string(bodyBytes),
-		Markdown:  markdownBody,
-	}, nil
-}
-
-func getMetadataAndBody(b []byte) ([]byte, []byte) {
-	if bytes.HasPrefix(b, []byte("---")) {
-		if parts := bytes.SplitN(b, []byte("---"), 3); len(parts) == 3 {
-			return parts[1], parts[2]
-		}
-	}
-
-	return []byte{}, b
-}
-
-func buildMetadata(
-	metadataBytes []byte,
-	bodyBytes []byte,
-	relativePath string,
-	thumbPath string,
-) (*metadata, []byte, error) {
-	m := metadata{
-		Tags: tags([]string{}), // setting default value, so that there is no need to check for nil in templates
-	}
-	if len(metadataBytes) != 0 {
-		err := yaml.Unmarshal(metadataBytes, &m)
-		if err != nil {
-			return nil, bodyBytes, errors.Wrapf(err, "reading metadata")
-		}
-
-		if m.Image != "" {
-			path, thumbPath := fixPath(m.Image, relativePath, thumbPath)
-			m.Images = append(m.Images, image{
-				Path:      path,
-				ThumbPath: thumbPath,
-			})
-		}
-	}
-
-	return grabMetadata(m, bodyBytes, relativePath, thumbPath)
-}
-
-var (
-	imageMarkdown  = regexp.MustCompile(`!\[(.*?)\]\(([^\s)]*)\s*"?([^"]*?)?"?\)`)
-	imageHTML      = regexp.MustCompile(`<img(.*?)>`)
-	htmlAttributes = regexp.MustCompile(`(\S+)\s*=\s*\"?(.*?)\"`)
-)
-
-func isValidURL(toTest string) bool {
-	_, err := url.ParseRequestURI(toTest)
-	if err != nil {
-		return false
-	}
-
-	u, err := url.Parse(toTest)
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return false
-	}
-
-	return true
-}
-
-func fixPath(url, relativePath, thumbPath string) (string, string) {
-	if !isValidURL(url) {
-		return path.Clean(relativePath + "/" + url),
-			path.Clean(thumbPath + "/" + url)
-	}
-	// sha1 hash of the url
-	h := sha1.New()
-	h.Write([]byte(url))
-	hash := hex.EncodeToString(h.Sum(nil))
-
-	// get path file extension
-	ext := filepath.Ext(url)
-
-	return url, thumbPath + "/" + hash + ext
-}
-
-func grabMetadata(
-	m metadata,
-	b []byte,
-	relativePath string,
-	thumbPath string,
-) (*metadata, []byte, error) {
-	b = bytes.TrimSpace(b)
-
-	buf := bytes.Buffer{}
-	hasHeader := false
-	hasTags := false
-
-	scanner := bufio.NewScanner(bytes.NewReader(b))
-	for scanner.Scan() {
-		scanned := scanner.Bytes()
-
-		// parse header
-		if bytes.HasPrefix(scanned, []byte("# ")) && !hasHeader {
-			line := scanner.Text()
-			htmlTitle := string(markdown.ToHTML([]byte(strings.TrimSpace(line[2:])), nil, nil))
-			htmlTitle = strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(htmlTitle), "<p>"), "</p>")
-
-			m.Title = htmlTitle
-			hasHeader = true
-			continue // so that we don't leave header in the body
-		}
-
-		// parse tags
-		if bytes.HasPrefix(scanned, []byte("#")) && !hasTags {
-			line := scanner.Text()
-			m.Tags = strings.Split(strings.TrimSpace(line), " ")
-			for i, tag := range m.Tags {
-				m.Tags[i] = strings.Trim(tag, "#,")
-			}
-			hasTags = true
-			continue // so that we don't leave tags in the body
-		}
-
-		// parse markdown images
-		if matches := imageMarkdown.FindAllStringSubmatch(scanner.Text(), -1); matches != nil {
-			for _, match := range matches {
-				alt, url, title := match[1], match[2], match[3]
-
-				path, thumbPath := fixPath(url, relativePath, thumbPath)
-				m.Images = append(m.Images, image{
-					Path:      path,
-					Alt:       alt,
-					Title:     title,
-					ThumbPath: thumbPath,
-				})
-			}
-		}
-
-		// parse HTML images
-		if matches := imageHTML.FindAllStringSubmatch(scanner.Text(), -1); matches != nil {
-			for _, match := range matches {
-				img := image{}
-				attributes := htmlAttributes.FindAllStringSubmatch(match[1], -1)
-				for _, attr := range attributes {
-					switch attr[1] {
-					case "src":
-						path, thumbPath := fixPath(attr[2], relativePath, thumbPath)
-						img.Path = path
-						img.ThumbPath = thumbPath
-					case "alt":
-						img.Alt = attr[2]
-					case "title":
-						img.Title = attr[2]
-					}
-				}
-
-				m.Images = append(m.Images, img)
-			}
-		}
-
-		buf.Write(scanned)
-		buf.WriteString("\n")
-	}
-	b = buf.Bytes()
-
-	return &m, b, nil
-}
-
-func getLanguageFromFilename(filename string) (newFilename, lang string) {
-	underscoreIndex := strings.LastIndex(filename, "_")
-	if underscoreIndex == -1 {
-		return filename, ""
-	}
-
-	dotIndex := strings.LastIndex(filename, ".")
-	if dotIndex == -1 {
-		return filename, ""
-	}
-
-	lang = filename[underscoreIndex+1 : dotIndex]
-	newFilename = filename[0:underscoreIndex] + filename[dotIndex:]
-	return
-}
-
-func printTagsStags(tagsCounter TagsCounterList) {
-	log.Println("Tags counts:")
-	p := make(PairList, len(tagsCounter))
-	i := 0
-	for k, v := range tagsCounter {
-		p[i] = Pair{k, v}
-		i++
-	}
-	sort.Sort(sort.Reverse(p))
-
-	for _, k := range p {
-		log.Printf("  %v: %v", k.Key, k.Value)
-	}
-}
-
-func createSearchIndex(pagesData []*pageData, searchIndexPath string) error {
+func createSearchIndex(pagesData []*MarkdownFile, searchIndexPath string) error {
 	// check if search index exists, if not create it
 	if _, err := os.Stat(searchIndexPath); !os.IsNotExist(err) {
 		log.Println("Search index alrady exists, skipping creation")
@@ -819,12 +459,12 @@ func createSearchIndex(pagesData []*pageData, searchIndexPath string) error {
 		return errors.Wrap(err, "failed to create search index")
 	}
 
-	err = indexer.RegisterType(pageData{Metadata: &metadata{Language: "en"}}, "en")
+	err = indexer.RegisterType(MarkdownFile{Language: "en"}, "en")
 	if err != nil {
 		return errors.Wrap(err, "failed to register pageData type")
 	}
 
-	err = indexer.RegisterType(pageData{Metadata: &metadata{Language: "ru"}}, "ru")
+	err = indexer.RegisterType(MarkdownFile{Language: "ru"}, "ru")
 	if err != nil {
 		return errors.Wrap(err, "failed to register pageData type")
 	}
