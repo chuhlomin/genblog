@@ -4,13 +4,13 @@
 [![release](https://github.com/chuhlomin/genblog/actions/workflows/release.yml/badge.svg)](https://github.com/chuhlomin/genblog/actions/workflows/release.yml)
 [![Dockerhub](https://img.shields.io/badge/docker-hub-4988CC)](https://hub.docker.com/repository/docker/chuhlomin/genblog)
 
-Generate a static blog from Markdown files.
+GenBlog is a static site generator based on Markdown files and Go-templates.
 
 ## Inputs
 
 | Name                      | Description                                                                     | Default                    |
 |---------------------------|---------------------------------------------------------------------------------|----------------------------|
-| `base_path`               | Base path for all generated URLs                                                | "/"                        |
+| `base_path`               | Base path for all generated URLs                                                | ""                         |
 | `source_directory`        | Path to directory with Markdown files                                           | "."                        |
 | `output_directory`        | Path to output directory                                                        | "output"                   |
 | `allowed_file_extensions` | Comma-separated list of allowed file extensions that will be copied as is       | "jpeg,.jpg,.png,.mp4,.pdf" |
@@ -85,6 +85,7 @@ individual post pages:
 | `Author`          | `string`   | Used in the `meta` author tag, overrides `author` input                        |
 | `Keywords`        | `string`   | Used in the `meta` keywords tag                                                |
 | `Draft`           | `bool`     | Marks post as draft, `false` by default                                        |
+| `Order`           | `int`      | Only to use with `sort` template function                                      |
 | `Template`        | `string`   | Template to use, overrides the default "`post.html`"                           |
 | `CommentsEnabled` | `bool`     | Overrides `comments_enabled` input                                             |
 | `Image`           | `string`   | Image associated with the post; it's used to generate the thumbnail            |

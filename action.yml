@@ -10,7 +10,7 @@ branding:
 inputs:
   base_path:
     description: Base path for all generated URLs
-    required: true
+    required: false
   source_directory:
     description: Path to directory with Markdown filenames
     required: false
@@ -73,4 +73,4 @@ inputs:
 
 runs:
   using: docker
-  image: 'docker://chuhlomin/genblog:v1.0-rc1'
+  image: 'docker://chuhlomin/genblog:v1.0-rc2'

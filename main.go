@@ -28,7 +28,7 @@ const (
 )
 
 type config struct {
-	BasePath              string   `env:"INPUT_BASE_PATH" envDefault:"/"`
+	BasePath              string   `env:"INPUT_BASE_PATH"`
 	SourceDirectory       string   `env:"INPUT_SOURCE_DIRECTORY" envDefault:"."`
 	OutputDirectory       string   `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"./output"`
 	AllowedFileExtensions []string `env:"INPUT_ALLOWED_FILE_EXTENSIONS" envDefault:".jpeg,.jpg,.png,.mp4,.pdf" envSeparator:","`

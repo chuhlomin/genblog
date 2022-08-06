@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -27,6 +28,7 @@ var fm = template.FuncMap{
 	"i18n":                  i18n,                  // translate string
 	"stripTags":             stripTags,             // remove html tags
 	"config":                getConfigValue,        // get config value
+	"sort":                  sortFiles,
 }
 
 var langSuffix = regexp.MustCompile(`_([a-z]{2}).(html|md)$`)
@@ -227,4 +229,16 @@ func stripTags(html string) string {
 
 func getConfigValue(key string) string {
 	return cfg.GetString(key)
+}
+
+func sortFiles(files []*MarkdownFile, field string) []*MarkdownFile {
+	switch field {
+	case "created":
+		sort.Sort(ByCreated(files))
+	case "order":
+		sort.Sort(ByOrder(files))
+	default:
+		log.Printf("unknown sort field: %s", field)
+	}
+	return files
 }

@@ -40,6 +40,7 @@ type MarkdownFile struct {
 	Keywords        string  `yaml:"keywords"`                   // keywords is used for the meta keywords
 	Draft           bool    `yaml:"draft"`                      // draft is used to mark post as draft
 	Template        string  `yaml:"template"`                   // template to use in config.TemplatesDirectory, overrides default "post.html"
+	Order           string  `yaml:"order"`                      // can be used to sort pages
 	CommentsEnabled *bool   `yaml:"comments_enabled"`           // comments_enabled overrides config.CommentsEnabled
 	Image           string  `yaml:"image"`                      // image associated with the post; it's used to generate the thumbnailPath
 	Images          []image // images in the post
@@ -47,15 +48,21 @@ type MarkdownFile struct {
 
 type ByCreated []*MarkdownFile
 
-func (c ByCreated) Len() int           { return len(c) }
-func (c ByCreated) Less(i, j int) bool { return c[i].Date > c[j].Date }
-func (c ByCreated) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
+func (md ByCreated) Len() int           { return len(md) }
+func (md ByCreated) Less(i, j int) bool { return md[i].Date > md[j].Date }
+func (md ByCreated) Swap(i, j int)      { md[i], md[j] = md[j], md[i] }
+
+type ByOrder []*MarkdownFile
+
+func (md ByOrder) Len() int           { return len(md) }
+func (md ByOrder) Less(i, j int) bool { return md[i].Order < md[j].Order }
+func (md ByOrder) Swap(i, j int)      { md[i], md[j] = md[j], md[i] }
 
 type ByLanguage []*MarkdownFile
 
-func (c ByLanguage) Len() int           { return len(c) }
-func (c ByLanguage) Less(i, j int) bool { return c[i].Language > c[j].Language }
-func (c ByLanguage) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
+func (md ByLanguage) Len() int           { return len(md) }
+func (md ByLanguage) Less(i, j int) bool { return md[i].Language > md[j].Language }
+func (md ByLanguage) Swap(i, j int)      { md[i], md[j] = md[j], md[i] }
 
 // image is a struct that contains metadata of image from the post
 type image struct {
