@@ -217,11 +217,12 @@ func (md *MarkdownFile) processBody(b []byte, relativePath, thumbPath string) []
 		}
 
 		// parse tags
-		if strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "# ") && !strings.HasPrefix(line, "##") {
+		if len(md.Tags) == 0 && strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "# ") && !strings.HasPrefix(line, "##") {
 			tags = strings.Split(strings.TrimSpace(line), " ")
 			for i, tag := range tags {
 				tags[i] = strings.Trim(tag, "#,")
 			}
+			md.Tags = tags
 			continue // so that we don't leave tags in the body
 		}
 
@@ -275,8 +276,6 @@ func (md *MarkdownFile) processBody(b []byte, relativePath, thumbPath string) []
 		buf.Write(b)
 		buf.WriteString("\n")
 	}
-
-	md.Tags = tags
 
 	return buf.Bytes()
 }
