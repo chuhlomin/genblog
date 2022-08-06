@@ -24,13 +24,13 @@ import (
 //    # Title
 //    Page content
 type MarkdownFile struct {
-	Source          string  // path to the source markdown file
-	Path            string  // path to the generated HTML file
-	Canonical       string  // canonical URL
-	ID              string  // same post in different languages will have the same ID value
-	Markdown        string  `indexer:"text"`                    // content of the markdown file
+	Source          string  `yaml:"-"`                          // path to the source markdown file
+	Path            string  `yaml:"-"`                          // path to the generated HTML file
+	Canonical       string  `yaml:"-"`                          // canonical URL
+	ID              string  `yaml:"-"`                          // same post in different languages will have the same ID value
+	Markdown        string  `yaml:"-" indexer:"text"`           // content of the markdown file
 	Title           string  `yaml:"title" indexer:"text"`       // by default equals to H1 in Markdown file
-	Body            string  `indexer:"no_store"`                // html body, generated from markdown
+	Body            string  `yaml:"-" indexer:"no_store"`       // html body, generated from markdown
 	Date            string  `yaml:"date" indexer:"date"`        // date when post was published, in format "2006-01-02"
 	ContentType     string  `yaml:"type"`                       // "post" (by default), "page", etc.
 	Tags            tags    `yaml:"tags"`                       // post tags, by default parsed from the post
@@ -43,7 +43,7 @@ type MarkdownFile struct {
 	Order           string  `yaml:"order"`                      // can be used to sort pages
 	CommentsEnabled *bool   `yaml:"comments_enabled"`           // comments_enabled overrides config.CommentsEnabled
 	Image           string  `yaml:"image"`                      // image associated with the post; it's used to generate the thumbnailPath
-	Images          []image // images in the post
+	Images          []image `yaml:"-"`                          // images in the post
 }
 
 type ByCreated []*MarkdownFile
@@ -186,6 +186,7 @@ var (
 	imageMarkdown  = regexp.MustCompile(`!\[(.*?)\]\(([^\s)]*)\s*"?([^"]*?)?"?\)`)
 	imageHTML      = regexp.MustCompile(`<img(.*?)>`)
 	htmlAttributes = regexp.MustCompile(`(\S+)\s*=\s*\"?(.*?)\"`)
+	linkToMD       = regexp.MustCompile(`\[(.+?)\]\((.+?).md\)`)
 )
 
 // processBody parses Title, Tags and Images from Markdown file content.
@@ -197,15 +198,16 @@ func (md *MarkdownFile) processBody(b []byte, relativePath, thumbPath string) []
 
 	buf := bytes.Buffer{}
 	hasHeader := false
-	hasTags := false
+
+	var tags []string
 
 	scanner := bufio.NewScanner(bytes.NewReader(b))
 	for scanner.Scan() {
-		scanned := scanner.Bytes()
+		line := scanner.Text()
+		b := scanner.Bytes()
 
 		// parse header
-		if bytes.HasPrefix(scanned, []byte("# ")) && !hasHeader {
-			line := scanner.Text()
+		if strings.HasPrefix(line, "# ") && !hasHeader {
 			htmlTitle := string(markdown.ToHTML([]byte(strings.TrimSpace(line[2:])), nil, nil))
 			htmlTitle = strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(htmlTitle), "<p>"), "</p>")
 
@@ -215,18 +217,16 @@ func (md *MarkdownFile) processBody(b []byte, relativePath, thumbPath string) []
 		}
 
 		// parse tags
-		if bytes.HasPrefix(scanned, []byte("#")) && !hasTags {
-			line := scanner.Text()
-			md.Tags = strings.Split(strings.TrimSpace(line), " ")
-			for i, tag := range md.Tags {
-				md.Tags[i] = strings.Trim(tag, "#,")
+		if strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "# ") && !strings.HasPrefix(line, "##") {
+			tags = strings.Split(strings.TrimSpace(line), " ")
+			for i, tag := range tags {
+				tags[i] = strings.Trim(tag, "#,")
 			}
-			hasTags = true
 			continue // so that we don't leave tags in the body
 		}
 
 		// parse markdown images
-		if matches := imageMarkdown.FindAllStringSubmatch(scanner.Text(), -1); matches != nil {
+		if matches := imageMarkdown.FindAllStringSubmatch(line, -1); matches != nil {
 			for _, match := range matches {
 				alt, url, title := match[1], match[2], match[3]
 
@@ -241,7 +241,7 @@ func (md *MarkdownFile) processBody(b []byte, relativePath, thumbPath string) []
 		}
 
 		// parse HTML images
-		if matches := imageHTML.FindAllStringSubmatch(scanner.Text(), -1); matches != nil {
+		if matches := imageHTML.FindAllStringSubmatch(line, -1); matches != nil {
 			for _, match := range matches {
 				img := image{}
 				attributes := htmlAttributes.FindAllStringSubmatch(match[1], -1)
@@ -262,9 +262,21 @@ func (md *MarkdownFile) processBody(b []byte, relativePath, thumbPath string) []
 			}
 		}
 
-		buf.Write(scanned)
+		// parse links to markdown files
+		// replace links to markdown files with links to HTML files
+		if matches := linkToMD.FindAllStringSubmatch(line, -1); matches != nil {
+			for _, match := range matches {
+				path := langToGetParameter(match[2] + ".html")
+				line = strings.Replace(line, match[0], "["+match[1]+"]("+path+")", -1)
+				b = []byte(line)
+			}
+		}
+
+		buf.Write(b)
 		buf.WriteString("\n")
 	}
+
+	md.Tags = tags
 
 	return buf.Bytes()
 }
