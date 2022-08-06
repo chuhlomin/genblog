@@ -30,7 +30,8 @@ const (
 type config struct {
 	BasePath              string   `env:"INPUT_BASE_PATH"`
 	SourceDirectory       string   `env:"INPUT_SOURCE_DIRECTORY" envDefault:"."`
-	OutputDirectory       string   `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"./output"`
+	StaticDirectory       string   `env:"INPUT_STATIC_DIRECTORY"`
+	OutputDirectory       string   `env:"INPUT_OUTPUT_DIRECTORY" envDefault:"output"`
 	AllowedFileExtensions []string `env:"INPUT_ALLOWED_FILE_EXTENSIONS" envDefault:".jpeg,.jpg,.png,.mp4,.pdf" envSeparator:","`
 	TemplatesDirectory    string   `env:"INPUT_TEMPLATES_DIRECTORY" envDefault:"_templates"`
 	DefaultTemplate       string   `env:"INPUT_DEFAULT_TEMPLATE" envDefault:"_post.html"`
@@ -204,11 +205,7 @@ func run() error {
 		}
 	}()
 
-	if err := readSourceDirectory(
-		cfg.SourceDirectory,
-		cfg.AllowedFileExtensions,
-		channelFiles,
-	); err != nil {
+	if err := readSourceDirectory(channelFiles); err != nil {
 		return errors.Wrap(err, "read posts directory")
 	}
 
@@ -222,6 +219,10 @@ func run() error {
 	log.Println("Rendering markdown files...")
 	if err = renderMarkdownFiles(markdownFiles, defaultTemplate); err != nil {
 		return errors.Wrap(err, "rendering pages")
+	}
+
+	if err := copyFiles(cfg.StaticDirectory, cfg.OutputDirectory); err != nil {
+		return errors.Wrap(err, "copy static files")
 	}
 
 	printTagsStags(tagsCounter)
@@ -370,6 +371,45 @@ func renderTemplates(t *template.Template, files []*MarkdownFile) error {
 	return nil
 }
 
+func copyFiles(from, to string) error {
+	if from == "" {
+		return nil
+	}
+
+	if _, err := os.Stat(from); os.IsNotExist(err) {
+		log.Printf("WARNING: directory %q not found", from)
+		return nil
+	}
+
+	log.Println("Copying static files...")
+
+	return filepath.Walk(from, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		if strings.HasPrefix(path, cfg.OutputDirectory) ||
+			strings.HasPrefix(path, ".git") {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(from, path)
+		if err != nil {
+			return err
+		}
+
+		if err := copyFile(path, to+"/"+relPath); err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
 func copyFile(src, dst string) error {
 	dir := filepath.Dir(dst)
 	if err := os.MkdirAll(dir, permDir); err != nil {
@@ -410,8 +450,8 @@ func createDirectory(dir string) error {
 	return nil
 }
 
-func readSourceDirectory(path string, allowedExtensions []string, filesChannel chan string) error {
-	return filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+func readSourceDirectory(filesChannel chan string) error {
+	return filepath.Walk(cfg.SourceDirectory, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -420,7 +460,9 @@ func readSourceDirectory(path string, allowedExtensions []string, filesChannel c
 			return nil
 		}
 
-		if strings.HasPrefix(path, "output") {
+		if strings.HasPrefix(path, cfg.OutputDirectory) ||
+			strings.HasPrefix(path, ".git") ||
+			(len(cfg.StaticDirectory) > 0 && strings.HasPrefix(path, cfg.StaticDirectory)) {
 			return nil
 		}
 
@@ -428,7 +470,7 @@ func readSourceDirectory(path string, allowedExtensions []string, filesChannel c
 
 		if (ext == ".md" && path != "README.md") ||
 			ext == ".toml" ||
-			inArray(allowedExtensions, ext) {
+			inArray(cfg.AllowedFileExtensions, ext) {
 
 			filesChannel <- path
 		}

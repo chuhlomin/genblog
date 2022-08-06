@@ -25,6 +25,10 @@ func (tcl TagsCounterList) Add(tags []string) {
 }
 
 func printTagsStags(tagsCounter TagsCounterList) {
+	if len(tagsCounter) == 0 {
+		return
+	}
+
 	log.Println("Tags counts:")
 	p := make(PairList, len(tagsCounter))
 	i := 0

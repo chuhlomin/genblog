@@ -15,6 +15,9 @@ inputs:
     description: Path to directory with Markdown filenames
     required: false
     default: "."
+  static_directory:
+    description: Path to directory with static files, to copy to `output_directory`
+    required: false
   output_directory:
     description: Path to output directory
     required: false
@@ -73,4 +76,4 @@ inputs:
 
 runs:
   using: docker
-  image: 'docker://chuhlomin/genblog:v1.0-rc2'
+  image: 'docker://chuhlomin/genblog:v1.0-rc3'

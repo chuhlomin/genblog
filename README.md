@@ -12,6 +12,7 @@ GenBlog is a static site generator based on Markdown files and Go-templates.
 |---------------------------|---------------------------------------------------------------------------------|----------------------------|
 | `base_path`               | Base path for all generated URLs                                                | ""                         |
 | `source_directory`        | Path to directory with Markdown files                                           | "."                        |
+| `static_directory`        | Path to directory with static files, to copy to `output_directory`              | ""                         |
 | `output_directory`        | Path to output directory                                                        | "output"                   |
 | `allowed_file_extensions` | Comma-separated list of allowed file extensions that will be copied as is       | "jpeg,.jpg,.png,.mp4,.pdf" |
 | `templates_directory`     | Path to templates directory                                                     | "_templates"               |
