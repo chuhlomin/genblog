@@ -35,13 +35,13 @@ type MarkdownFile struct {
 	ContentType     string  `yaml:"type"`                       // "post" (by default), "page", etc.
 	Tags            tags    `yaml:"tags"`                       // post tags, by default parsed from the post
 	Language        string  `yaml:"language"`                   // language ("en", "ru", ...), parsed from filename, overrides config.DefaultLanguage
-	Description     string  `yaml:"description" indexer:"text"` // description is used for the meta description
-	Author          string  `yaml:"author"`                     // author is used for the meta author
-	Keywords        string  `yaml:"keywords"`                   // keywords is used for the meta keywords
 	Draft           bool    `yaml:"draft"`                      // draft is used to mark post as draft
 	Template        string  `yaml:"template"`                   // template to use in config.TemplatesDirectory, overrides default "post.html"
 	Order           string  `yaml:"order"`                      // can be used to sort pages
 	CommentsEnabled *bool   `yaml:"comments_enabled"`           // comments_enabled overrides config.CommentsEnabled
+	Description     string  `yaml:"description" indexer:"text"` // description is used for the meta description
+	Author          string  `yaml:"author"`                     // author is used for the meta author
+	Keywords        string  `yaml:"keywords"`                   // keywords is used for the meta keywords
 	Image           string  `yaml:"image"`                      // image associated with the post; it's used to generate the thumbnailPath
 	Images          []image `yaml:"-"`                          // images in the post
 }
@@ -113,11 +113,7 @@ func processMarkdownFileContent(path string, content []byte) (*MarkdownFile, err
 		ContentType: "post",           // default value, may be overridden by metadata
 	}
 
-	md.ID = path
-	if md.Language == "" {
-		md.ID, md.Language = getIDAndLangFromFilename(path)
-	}
-
+	md.ID, md.Language = getIDAndLangFromFilename(path)
 	if md.Language == "" {
 		md.Language = cfg.DefaultLanguage
 	}
