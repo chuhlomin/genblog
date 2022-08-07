@@ -352,35 +352,6 @@ func TestYear(t *testing.T) {
 	}
 }
 
-func TestFilepathBase(t *testing.T) {
-	tests := []struct {
-		path string
-		last string
-	}{
-		// {
-		// 	path: "/",
-		// 	last: "",
-		// },
-		{
-			path: "/foo",
-			last: "foo",
-		},
-		{
-			path: "/foo/bar",
-			last: "bar",
-		},
-		{
-			path: "/foo/bar/",
-			last: "bar",
-		},
-	}
-
-	for _, test := range tests {
-		last := filepathBase(test.path)
-		require.Equal(t, test.last, last)
-	}
-}
-
 func TestStripTags(t *testing.T) {
 	tests := []struct {
 		in  string

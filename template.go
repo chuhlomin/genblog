@@ -24,7 +24,6 @@ var fm = template.FuncMap{
 	"langGetParameter":      langGetParameter,      // get lang parameter value for page
 	"langToGetParameter":    langToGetParameter,    // replace lang suffix with .html and append ?lang=ru, e.g. index_ru.html -> index.html?lang=ru
 	"year":                  year,                  // gets the year from date of format "2006-01-02"
-	"filepathBase":          filepathBase,          // returns the last path element
 	"i18n":                  i18n,                  // translate string
 	"stripTags":             stripTags,             // remove html tags
 	"config":                getConfigValue,        // get config value
@@ -203,10 +202,6 @@ func year(date string) string {
 	}
 
 	return date[:4]
-}
-
-func filepathBase(path string) string {
-	return filepath.Base(path)
 }
 
 func i18n(id string, lang string) string {
