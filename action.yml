@@ -76,4 +76,4 @@ inputs:
 
 runs:
   using: docker
-  image: 'docker://chuhlomin/genblog:v1.0-rc5'
+  image: 'docker://chuhlomin/genblog:v1.0'
